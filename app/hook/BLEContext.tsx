@@ -1,0 +1,365 @@
+import React, {
+  createContext,
+  useRef,
+  useContext,
+  useState,
+  useEffect,
+} from "react";
+import { BleManager, Device, Characteristic } from "react-native-ble-plx";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useTranslation } from "react-i18next";
+import { connectedDevice, foundDevice, deviceScan } from "../states";
+import { useRecoilState } from "recoil";
+import { PermissionsAndroid, Platform, Alert } from "react-native";
+import { Buffer } from "buffer";
+import * as RootNavigation from "../navigator/RootNavigation";
+
+interface PrintService {
+  service_uuid: string;
+  characteristic_uuid: string;
+}
+
+interface Service {
+  device: Device;
+  uuid: string;
+  characteristics(): Promise<Characteristic[]>;
+}
+
+interface InstructionType {
+  SERVICE_UUID: string;
+  CHARACTERISTIC_UUID: string;
+}
+
+interface BLEContextType {
+  manager: BleManager;
+  device: React.RefObject<Device | null>;
+  printService: PrintService | null;
+  devices: Device[];
+  startScanning: () => void;
+  stopScanning: () => void;
+  isScanning: boolean;
+  selectDevice: (deviceId: string) => Promise<boolean>;
+  connetedDevice: Device[];
+  disconnectFromDevice: (deviceId: string) => Promise<void>;
+  printContent: (content: string) => Promise<boolean>;
+}
+
+const BLEContext = createContext<BLEContextType | null>(null);
+
+export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
+  const manager = new BleManager();
+  const device = useRef<Device | null>(null);
+  const { t } = useTranslation();
+  const [bluetoothEnabled, setBluetoothEnabled] = useState(false);
+  const [printService, setPrintService] = useState<PrintService | null>(null);
+  const [devices, setDevices] = useRecoilState<Device[]>(foundDevice);
+  const [connetedDevice, setConnetedDevice] =
+    useRecoilState<Device[]>(connectedDevice);
+  const [isScanning, setIsScanning] = useRecoilState(deviceScan);
+
+  const requestPermissions = async (cb: (granted: boolean) => void) => {
+    if (Platform.OS === "android") {
+      try {
+        let grants = await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+        ]);
+        const granted = Object.values(grants).every(
+          (grantStatus) => grantStatus === PermissionsAndroid.RESULTS.GRANTED
+        );
+        granted ? cb(true) : cb(false);
+      } catch (error) {
+        console.log("requestPermissions::", error);
+        cb(false);
+      }
+    } else {
+      cb(true);
+    }
+  };
+
+  useEffect(() => {
+    requestPermissions((granted: boolean) => {
+      if (granted) {
+        const subscription = manager.onStateChange((state) => {
+          if (state === "PoweredOn") {
+            setBluetoothEnabled(true);
+          } else {
+            setBluetoothEnabled(false);
+          }
+        }, true);
+
+        return () => {
+          subscription.remove();
+        };
+      } else {
+        showAlert("", t("permission_bluetooth_error"));
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      if (!device.current) {
+        await getLastDevice();
+      }
+    })();
+  }, [bluetoothEnabled]);
+
+  const showAlert = (title: string, message: string) =>
+    Alert.alert(
+      title,
+      message,
+      [
+        {
+          text: "Ok",
+          style: "cancel",
+        },
+      ],
+      {
+        cancelable: true,
+      }
+    );
+
+  const showAlertConfirm = (title: string, message: string) =>
+    Alert.alert(
+      title,
+      message,
+      [
+        {
+          text: t("connect_now"),
+          onPress: () => RootNavigation.navigate("PrinterScreen"),
+          style: "default",
+        },
+      ],
+      {
+        cancelable: true,
+      }
+    );
+
+  const setLastDevice = async (
+    deviceId: string,
+    service_uuid: string,
+    characteristic_uuid: string
+  ) => {
+    await AsyncStorage.setItem("selectedPrinterDeviceId", deviceId);
+    await AsyncStorage.setItem("selectedPrinterServiceUUID", service_uuid);
+    await AsyncStorage.setItem(
+      "selectedPrinterCharacteristicUUID",
+      characteristic_uuid
+    );
+  };
+
+  const getLastDevice = async () => {
+    const storedDeviceId = await AsyncStorage.getItem(
+      "selectedPrinterDeviceId"
+    );
+    if (storedDeviceId && bluetoothEnabled) {
+      const storedServiceUUID = await AsyncStorage.getItem(
+        "selectedPrinterServiceUUID"
+      );
+      const storedCharacteristicUUID = await AsyncStorage.getItem(
+        "selectedPrinterCharacteristicUUID"
+      );
+      if (storedServiceUUID && storedCharacteristicUUID) {
+        setPrintService({
+          service_uuid: storedServiceUUID,
+          characteristic_uuid: storedCharacteristicUUID,
+        });
+        const isConnected = await manager.isDeviceConnected(storedDeviceId);
+        if (!isConnected) {
+          await connectToDevice(storedDeviceId);
+        }
+      }
+    }
+  };
+
+  const startScanning = () => {
+    setIsScanning(true);
+    setDevices([]);
+    manager.startDeviceScan(
+      null,
+      null,
+      (error: Error | null, scannedDevice: Device | null) => {
+        if (error) {
+          console.error("Device scanning error:", error);
+          return;
+        }
+        if (scannedDevice && scannedDevice.name) {
+          setDevices((prevDevices) => {
+            if (!prevDevices.find((device) => device.id === scannedDevice.id)) {
+              return [...prevDevices, scannedDevice];
+            }
+            return prevDevices;
+          });
+        }
+      }
+    );
+    setTimeout(() => {
+      stopScanning();
+      setIsScanning(false);
+    }, 7000);
+  };
+
+  const stopScanning = () => {
+    manager.stopDeviceScan();
+  };
+
+  const selectDevice = async (deviceId: string): Promise<boolean> => {
+    return await connectToDevice(deviceId);
+  };
+
+  const findWorkingCharacteristic = async (
+    device: Device,
+    prefixText?: string
+  ): Promise<InstructionType | null> => {
+    const receiptText = prefixText || "\n\nKet noi may in thanh cong!\n\n";
+    const printData = new Uint8Array(receiptText.length);
+    for (let i = 0; i < receiptText.length; i++) {
+      printData[i] = receiptText.charCodeAt(i);
+    }
+    const base64PrintData = Buffer.from(printData).toString("base64");
+
+    await device.discoverAllServicesAndCharacteristics();
+    const services = await device.services();
+
+    for (const service of services) {
+      const characteristics = await service.characteristics();
+      for (const characteristic of characteristics) {
+        const SERVICE_UUID = service.uuid;
+        const CHARACTERISTIC_UUID = characteristic.uuid;
+        try {
+          await device.writeCharacteristicWithResponseForService(
+            SERVICE_UUID,
+            CHARACTERISTIC_UUID,
+            base64PrintData
+          );
+          return { SERVICE_UUID, CHARACTERISTIC_UUID };
+        } catch (error) {
+          console.warn(
+            `Failed to write to characteristic: ${CHARACTERISTIC_UUID} of ${SERVICE_UUID}`
+          );
+        }
+      }
+    }
+    return null;
+  };
+
+  const connectToDevice = async (deviceId: string): Promise<boolean> => {
+    return new Promise<boolean>(async (resolve) => {
+      if (deviceId !== device.current?.id) {
+        try {
+          const isConnected = await manager.isDeviceConnected(deviceId);
+          let connectedDevice = isConnected
+            ? connetedDevice[0]
+            : await manager.connectToDevice(deviceId);
+
+          const instruction = await findWorkingCharacteristic(
+            connectedDevice,
+            undefined
+          );
+
+          setConnetedDevice([connectedDevice]);
+
+          if (instruction) {
+            const { SERVICE_UUID, CHARACTERISTIC_UUID } = instruction;
+            setPrintService({
+              service_uuid: SERVICE_UUID,
+              characteristic_uuid: CHARACTERISTIC_UUID,
+            });
+            device.current = connectedDevice;
+            await setLastDevice(deviceId, SERVICE_UUID, CHARACTERISTIC_UUID);
+            resolve(true);
+          } else {
+            console.error("No suitable service and characteristic found");
+            resolve(false);
+          }
+        } catch (error) {
+          console.error("Failed to connect to device:", error);
+          resolve(false);
+        }
+      } else {
+        resolve(false);
+      }
+    });
+  };
+
+  const printContent = async (base64Content = ""): Promise<boolean> => {
+    return new Promise<boolean>(async (resolve) => {
+      const deviceId = await AsyncStorage.getItem("selectedPrinterDeviceId");
+      if (deviceId && device.current && printService) {
+        try {
+          const isConnected = await manager.isDeviceConnected(deviceId);
+          device.current = isConnected
+            ? device.current
+            : await manager.connectToDevice(deviceId);
+          await device.current.discoverAllServicesAndCharacteristics();
+          await device.current.writeCharacteristicWithResponseForService(
+            printService.service_uuid,
+            printService.characteristic_uuid,
+            base64Content
+          );
+          resolve(true);
+        } catch (error) {
+          console.error("Failed to write to device:", error);
+          resolve(false);
+        }
+      } else {
+        showAlertConfirm("", t("no_connected_printer"));
+        resolve(false);
+      }
+    });
+  };
+
+  const disconnectFromDevice = async (deviceId: string): Promise<void> => {
+    try {
+      await AsyncStorage.removeItem("selectedPrinterDeviceId");
+      await AsyncStorage.removeItem("selectedPrinterServiceUUID");
+      device.current = null;
+      setConnetedDevice([]);
+      await manager.cancelDeviceConnection(deviceId);
+      await reloadBluetooth();
+    } catch (error) {
+      console.error("Failed to disconnect from device:", error);
+    }
+  };
+
+  const reloadBluetooth = async (): Promise<void> => {
+    try {
+      await manager.disable();
+      await manager.enable();
+    } catch (error) {
+      console.error("Failed to reload bluetooth:", error);
+    }
+  };
+
+  return (
+    <BLEContext.Provider
+      value={{
+        manager,
+        device,
+        printService,
+        devices,
+        startScanning,
+        stopScanning,
+        isScanning,
+        selectDevice,
+        connetedDevice,
+        disconnectFromDevice,
+        printContent,
+      }}
+    >
+      {children}
+    </BLEContext.Provider>
+  );
+};
+
+export const useBLE = () => {
+  const context = useContext(BLEContext);
+  if (!context) {
+    throw new Error("useBLE must be used within a BLEProvider");
+  }
+  return context;
+};
+
+export default BLEContext;

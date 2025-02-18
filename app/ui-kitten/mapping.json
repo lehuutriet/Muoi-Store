@@ -1,0 +1,18 @@
+{
+    "components": {
+      "Button": {
+        "meta": {},
+        "appearances": {
+          "filled": {
+            "mapping": {},
+            "variantGroups": {
+              "status": {
+                "primary": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  
