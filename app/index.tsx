@@ -44,7 +44,8 @@ import LoginScreen from "./screens/LoginScreen";
 import remoteConfig from "@react-native-firebase/remote-config";
 import * as Application from "expo-application";
 import { compareVersions } from "compare-versions";
-
+const APPWRITE_ENDPOINT = "https://store.hjm.bid/v1";
+const PROJECT_ID = "67b3e08f00152bbd6ed4";
 SplashScreen.preventAutoHideAsync().catch(() => {
   /* reloading the app might trigger some race conditions, ignore them */
 });
@@ -76,7 +77,7 @@ async function registerForPushNotificationsAsync() {
       finalStatus = status;
     }
     if (finalStatus !== "granted") {
-      alert("Failed to get push token for push notification!");
+      // alert("Failed to get push token for push notification!");
       return;
     }
     token = (await Notifications.getExpoPushTokenAsync()).data;
@@ -197,52 +198,8 @@ function MainScreen() {
 
   useEffect(() => {
     const initAppwrite = async () => {
-      // Thay thế các giá trị từ Firebase bằng các giá trị cố định của Appwrite
-      const APPWRITE_ENDPOINT = "https://store.hjm.bid/v1";
-      const PROJECT_ID = "67b3e08f00152bbd6ed4";
-
       const aw = createAppwriteClient(APPWRITE_ENDPOINT, PROJECT_ID);
-
       setAppwrite(aw);
-
-      // Kiểm tra phiên bản ứng dụng nếu cần
-      if (Application.nativeApplicationVersion) {
-        const APP_VERSION = "1.0.0"; // Đặt version cố định
-        const PLAYSTORE_URL = "your_playstore_url";
-        const APPSTORE_URL = "your_appstore_url";
-
-        if (
-          compareVersions(APP_VERSION, Application.nativeApplicationVersion) > 0
-        ) {
-          const storeURL =
-            Platform.OS === "android"
-              ? PLAYSTORE_URL
-              : Platform.OS === "ios"
-              ? APPSTORE_URL
-              : null;
-
-          if (storeURL) {
-            Alert.alert(
-              t("inform"),
-              t("new_version"),
-              [
-                {
-                  text: t("later"),
-                  style: "cancel",
-                },
-                {
-                  text: t("update"),
-                  onPress: () => Linking.openURL(storeURL),
-                  style: "default",
-                },
-              ],
-              {
-                cancelable: true,
-              }
-            );
-          }
-        }
-      }
     };
 
     initAppwrite();
@@ -295,7 +252,16 @@ function MainScreen() {
                     {/* <BLEProvider>  */}
                     <NavigationContainer ref={RootNavigation.navigationRef}>
                       <Stack.Navigator screenOptions={{ headerShown: false }}>
-                        {!isLoggedIn ? (
+                        <Stack.Screen
+                          name="Main"
+                          component={Drawer}
+                          initialParams={{
+                            pushToken: pushToken,
+                            onLoggedOut: () => setIsLoggedIn(false),
+                          }}
+                          options={{ headerShown: false }}
+                        />
+                        {/* {!isLoggedIn ? (
                           <Stack.Screen
                             name="Login"
                             component={LoginScreen}
@@ -314,7 +280,7 @@ function MainScreen() {
                             }}
                             options={{ headerShown: false }}
                           />
-                        )}
+                        )} */}
                       </Stack.Navigator>
                     </NavigationContainer>
                     {/* </BLEProvider>  */}

@@ -6,7 +6,25 @@ import {
   DefaultValue,
 } from "recoil";
 
-export const currentOrderAtom = atom({
+export interface OrderItem {
+  price: number;
+  count: number;
+  $id: string;
+  name: string;
+}
+
+export interface CurrentOrderType {
+  $id: string;
+  note: string;
+  table: string;
+  discount: number;
+  subtract: number;
+  total: number;
+  date: Date;
+  order: OrderItem[];
+}
+
+export const currentOrderAtom = atom<CurrentOrderType>({
   key: "currentOrder",
   default: {
     $id: "",

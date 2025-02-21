@@ -2,13 +2,13 @@ import React, { useEffect, useState } from "react";
 import { useRecoilState } from "recoil";
 import { userAtom } from "../states";
 import { useTranslation } from "react-i18next";
+import { IconProps } from "@ui-kitten/components";
 import {
   Layout,
   Input,
   Text,
   Button,
   Icon,
-  Spinner,
   StyleService,
   useStyleSheet,
 } from "@ui-kitten/components";
@@ -36,6 +36,22 @@ const OUTPUT_RANGE_START = -281;
 const OUTPUT_RANGE_END = 0;
 const ANIMATION_TO_VALUE = 1;
 const ANIMATION_DURATION = 25000;
+
+interface Styles {
+  backgroundImg: ViewStyle;
+  loginLayout: ViewStyle;
+  loginHolder: ViewStyle;
+  captionContainer: ViewStyle;
+  captionIcon: ImageStyle;
+  captionText: TextStyle;
+  submitButton: ViewStyle;
+}
+
+interface Session {
+  userId?: string;
+  $id?: string;
+  providerUid?: string;
+}
 
 type RootStackParamList = {
   Login: {
@@ -70,27 +86,19 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ route }) => {
   const { t } = useTranslation();
   const [waiting, setWaiting] = useState(false);
   const [userInfo, setUserInfo] = useRecoilState(userAtom);
+  const [alert, setAlert] = useState("");
+  const [user, setUser] = useState("");
+  const [password, setPassword] = useState("");
+  const [secureTextEntry, setSecureTextEntry] = useState(true);
 
-  // Animating background
+  // Animation background
   const initialValue = 0;
   const translateValue = React.useRef(new Animated.Value(initialValue)).current;
   const AnimatedImage = React.useRef(
     Animated.createAnimatedComponent(ImageBackground)
   ).current;
 
-  useEffect(() => {
-    const checkLogin = async () => {
-      const currentSession = await getSession().catch(() => false);
-      setCurrentSession(currentSession);
-      if (currentSession === "error") showAlert(t("inform"), t("server_error"));
-      if (currentSession && currentSession.userId) {
-        setUserInfo({ ...userInfo, id: currentSession.userId });
-        onLoggedIn();
-      }
-    };
-    checkLogin();
-  }, []);
-
+  // Background animation
   useEffect(() => {
     const translate = () => {
       translateValue.setValue(initialValue);
@@ -104,22 +112,37 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ route }) => {
     translate();
   }, [translateValue]);
 
+  // Tách riêng phần check session, cho chạy sau khi UI đã render
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const currentSession = await getSession();
+        if (
+          currentSession &&
+          typeof currentSession !== "string" &&
+          currentSession.userId
+        ) {
+          setUserInfo((prev) => ({ ...prev, id: currentSession.userId }));
+          onLoggedIn();
+        }
+      } catch (error) {
+        console.error("Session check error:", error);
+      }
+    };
+
+    checkSession();
+  }, []);
+
   const translateAnimation = translateValue.interpolate({
     inputRange: [INPUT_RANGE_START, INPUT_RANGE_END],
     outputRange: [OUTPUT_RANGE_START, OUTPUT_RANGE_END],
   });
 
-  const [alert, setAlert] = useState("");
-  const [currentSession, setCurrentSession] = useState<any>(null);
-  const [user, setUser] = useState("");
-  const [password, setPassword] = useState("");
-  const [secureTextEntry, setSecureTextEntry] = useState(true);
-
   const toggleSecureEntry = (): void => {
     setSecureTextEntry(!secureTextEntry);
   };
 
-  const renderIcon = (props: any): React.ReactElement => (
+  const renderIcon = (props: IconProps): React.ReactElement => (
     <TouchableWithoutFeedback onPress={toggleSecureEntry}>
       <Icon {...props} name={secureTextEntry ? "eye-off" : "eye"} />
     </TouchableWithoutFeedback>
@@ -127,43 +150,50 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ route }) => {
 
   const renderCaption = (): React.ReactElement => {
     return (
-      <View style={styles.captionContainer}>
+      <View style={styles.captionContainer as ViewStyle}>
         <Icon
-          style={styles.captionIcon}
+          style={styles.captionIcon as ImageStyle}
           fill="blue"
           name="alert-circle-outline"
         />
-        <Text style={styles.captionText}>{t("password_requirement")}</Text>
+        <Text style={styles.captionText as TextStyle}>
+          {t("password_requirement")}
+        </Text>
       </View>
     );
   };
 
   const loginSubmit = async () => {
+    if (!user || !password) return;
+
     setWaiting(true);
-    console.log("Login attempt with:", user, password);
-    const loginStatus = await login(user, password);
-    console.log("Login response:", loginStatus);
-    if (loginStatus && loginStatus.userId) {
-      setUserInfo({ ...userInfo, id: loginStatus.userId });
-      setAlert(`${t("login_success")}`);
-      onLoggedIn();
+    try {
+      const loginStatus = await login(user, password);
+
+      if (
+        loginStatus &&
+        typeof loginStatus !== "string" &&
+        loginStatus.userId
+      ) {
+        await Promise.all([
+          setUserInfo({ ...userInfo, id: loginStatus.userId }),
+          setAlert(`${t("login_success")}`),
+        ]);
+
+        onLoggedIn();
+      }
+    } finally {
+      setWaiting(false);
     }
-    if (loginStatus === false) {
-      setAlert(`${t("login_fail")}`);
-    }
-    if (loginStatus === "error") {
-      showAlert(t("inform"), t("server_error"));
-    }
-    setWaiting(false);
   };
 
   return (
     <SafeAreaView>
-      <Layout style={styles.loginLayout}>
+      <Layout style={styles.loginLayout as ViewStyle}>
         <AnimatedImage
           resizeMode="repeat"
           style={[
-            styles.backgroundImg,
+            styles.backgroundImg as ViewStyle,
             {
               transform: [
                 {
@@ -173,51 +203,46 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ route }) => {
                   translateY: translateAnimation,
                 },
               ],
-            },
+            } as ViewStyle,
           ]}
           source={require("../../assets/icons/background.png")}
         />
-        {currentSession === null ? (
-          <View style={{ backgroundColor: "transparent", opacity: 0.5 }}>
-            <Spinner status="info" size="giant" />
-          </View>
-        ) : (
-          <View style={styles.loginHolder}>
-            <Text category="h1" style={{ textAlign: "center" }}>{`${t(
-              "app_name"
-            )}`}</Text>
-            <Input
-              value={user}
-              label={t("email")}
-              placeholder={t("sample_email")}
-              onChangeText={(nextValue) => setUser(nextValue)}
-            />
-            <Input
-              value={password}
-              label={t("password")}
-              placeholder={t("password_placeholder")}
-              caption={renderCaption}
-              accessoryRight={renderIcon}
-              secureTextEntry={secureTextEntry}
-              onChangeText={(nextValue) => setPassword(nextValue)}
-            />
-            <Button
-              style={styles.submitButton}
-              appearance="outline"
-              onPress={() => loginSubmit()}
-            >
-              {`${t("login")}`}
-            </Button>
-            <Text style={{ textAlign: "center" }}>{alert}</Text>
-          </View>
-        )}
+        <View style={styles.loginHolder as ViewStyle}>
+          <Text
+            category="h1"
+            style={{ textAlign: "center" } as TextStyle}
+          >{`${t("app_name")}`}</Text>
+          <Input
+            value={user}
+            label={t("email")}
+            placeholder={t("sample_email")}
+            onChangeText={(nextValue) => setUser(nextValue)}
+          />
+          <Input
+            value={password}
+            label={t("password")}
+            placeholder={t("password_placeholder")}
+            caption={renderCaption}
+            accessoryRight={renderIcon}
+            secureTextEntry={secureTextEntry}
+            onChangeText={(nextValue) => setPassword(nextValue)}
+          />
+          <Button
+            style={styles.submitButton as ViewStyle}
+            appearance="outline"
+            onPress={loginSubmit}
+          >
+            {`${t("login")}`}
+          </Button>
+          <Text style={{ textAlign: "center" } as TextStyle}>{alert}</Text>
+        </View>
       </Layout>
       <WaitingModal waiting={waiting} />
     </SafeAreaView>
   );
 };
 
-const styleSheet = StyleService.create({
+const styleSheet = StyleService.create<Styles>({
   backgroundImg: {
     position: "absolute",
     width: 1200,
@@ -232,35 +257,35 @@ const styleSheet = StyleService.create({
         translateY: 0,
       },
     ],
-  } as ViewStyle,
+  },
   loginLayout: {
     height: Dimensions.get("window").height,
     padding: 20,
     alignItems: "center",
     justifyContent: "center",
-  } as ViewStyle,
+  },
   loginHolder: {
     width: "100%",
-  } as ViewStyle,
+  },
   captionContainer: {
     display: "flex",
     flexDirection: "row",
     alignItems: "center",
-  } as ViewStyle,
+  },
   captionIcon: {
     width: 10,
     height: 10,
     marginRight: 5,
-  } as ImageStyle,
+  },
   captionText: {
     fontSize: 12,
     fontWeight: "400",
     color: "#8F9BB3",
-  } as TextStyle,
+  },
   submitButton: {
     marginTop: 20,
     marginBottom: 20,
-  } as ViewStyle,
+  },
 });
 
 export default LoginScreen;

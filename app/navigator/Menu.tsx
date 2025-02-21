@@ -1,88 +1,123 @@
 import React from "react";
 import {
-  Icon,
-  IconElement,
-  Layout,
-  Menu,
-  MenuGroup,
-  MenuItem,
-  StyleService,
-  useStyleSheet,
-} from "@ui-kitten/components";
-import { useTranslation } from "react-i18next";
-import { StyleSheet } from "react-native";
+  StyleSheet,
+  View,
+  ScrollView,
+  TouchableOpacity,
+  ViewStyle,
+  StyleProp,
+} from "react-native";
+import { Text, Icon, IconElement } from "@ui-kitten/components";
 
-const MenuGroups = ({ onNavigate }): React.ReactElement => {
-  const { t } = useTranslation();
-  const styles = useStyleSheet(styleSheet);
-  const [selectedIndex, setSelectedIndex] = React.useState(null);
+// Định nghĩa interfaces
+export interface MenuItemProps {
+  title: string;
+  icon?: (props: any) => IconElement;
+  onPress?: () => void;
+  style?: StyleProp<ViewStyle>;
+  accessoryLeft?: (props: any) => IconElement;
+  accessoryRight?: (props: any) => IconElement;
+}
 
+export interface MenuProps {
+  selectedIndex?: number;
+  onSelect?: (index: number) => void;
+  data: MenuItemProps[];
+  style?: StyleProp<ViewStyle>;
+}
+
+const MenuItem: React.FC<MenuItemProps> = ({
+  title,
+  icon,
+  onPress,
+  style,
+  accessoryLeft,
+  accessoryRight,
+}) => {
   return (
-    <Menu
-      style={styles.menu}
-      selectedIndex={selectedIndex}
-      onSelect={(index) => setSelectedIndex(index)}
-    >
-      <MenuItem
-        title={t("create_order")}
-        accessoryLeft={(props) => <Icon {...props} name="calendar-outline" />}
-        style={styles.menuItem}
-        onPress={() => onNavigate("CreateOrderScreen", "create")}
-      />
-      <MenuItem
-        title={t("manage_order")}
-        accessoryLeft={(props) => (
-          <Icon {...props} name="checkmark-square-outline" />
+    <TouchableOpacity style={[styles.menuItem, style]} onPress={onPress}>
+      <View style={styles.menuItemContent}>
+        {accessoryLeft && (
+          <View style={styles.accessoryLeft}>
+            {accessoryLeft({
+              style: styles.icon,
+            })}
+          </View>
         )}
-        style={styles.menuItem}
-        onPress={() => onNavigate("ManageOrderScreen", "manage")}
-      />
-      {/* <MenuItem
-        title={t("create_product")}
-        accessoryLeft={(props) => <Icon {...props} name="file-add-outline" />}
-        style={styles.menuItem}
-        onPress={() => onNavigate("CreateProductScreen")}
-      /> */}
-      <MenuItem
-        title={t("manage_product")}
-        accessoryLeft={(props) => <Icon {...props} name="layout-outline" />}
-        style={styles.menuItem}
-        onPress={() => onNavigate("ManageProductScreen", "manage")}
-      />
-      <MenuItem
-        title={t("manage_table")}
-        accessoryLeft={(props) => <Icon {...props} name="monitor-outline" />}
-        style={styles.menuItem}
-        onPress={() => onNavigate("ManageTableScreen", "manage")}
-      />
-      {/* 
-      <MenuGroup title="Akveo React Native" accessoryLeft={SmartphoneIcon}>
-        <MenuItem title="UI Kitten" accessoryLeft={StarIcon} />
-        <MenuItem title="Kitten Tricks" accessoryLeft={StarIcon} />
-      </MenuGroup>
 
-      <MenuGroup title="Akveo Angular" accessoryLeft={BrowserIcon}>
-        <MenuItem title="Nebular" accessoryLeft={StarIcon} />
-        <MenuItem title="ngx-admin" accessoryLeft={StarIcon} />
-        <MenuItem title="UI Bakery" accessoryLeft={StarIcon} />
-      </MenuGroup>
+        <Text style={styles.menuItemTitle}>{title}</Text>
 
-      <MenuGroup title="Akveo Design" accessoryLeft={ColorPaletteIcon}>
-        <MenuItem title="Eva Design System" accessoryLeft={StarIcon} />
-        <MenuItem title="Eva Icons" accessoryLeft={StarIcon} />
-      </MenuGroup> */}
-    </Menu>
+        {accessoryRight && (
+          <View style={styles.accessoryRight}>
+            {accessoryRight({
+              style: styles.icon,
+            })}
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
   );
 };
 
-const styleSheet = StyleService.create({
-  menu: {
-    width: "100%",
-    // backgroundColor: "color-basic-100",
+export const Menu: React.FC<MenuProps> = ({
+  selectedIndex,
+  onSelect,
+  data,
+  style,
+}) => {
+  const handleSelect = (index: number) => {
+    if (onSelect) {
+      onSelect(index);
+    }
+  };
+
+  return (
+    <ScrollView
+      style={[styles.container, style]}
+      showsVerticalScrollIndicator={false}
+    >
+      {data.map((item, index) => (
+        <MenuItem
+          key={index}
+          {...item}
+          onPress={() => handleSelect(index)}
+          style={[item.style, selectedIndex === index && styles.selectedItem]}
+        />
+      ))}
+    </ScrollView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
   },
   menuItem: {
-    backgroundColor: "color-basic-200",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E8E8E8",
+  },
+  menuItemContent: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  menuItemTitle: {
+    flex: 1,
+    fontSize: 16,
+  },
+  selectedItem: {
+    backgroundColor: "#F7F9FC",
+  },
+  icon: {
+    width: 24,
+    height: 24,
+  },
+  accessoryLeft: {
+    marginRight: 12,
+  },
+  accessoryRight: {
+    marginLeft: 12,
   },
 });
-
-export default MenuGroups;
+export default MenuItem;

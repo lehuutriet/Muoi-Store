@@ -1,7 +1,10 @@
 import { atom, atomFamily, selector } from "recoil";
-
-export const allCategoryAtom = atom({
-  key: "allCategory",
+interface Category {
+  $id: string;
+  name: string;
+}
+export const allCategoryAtom = atom<Category[]>({
+  key: "allCategoryAtom",
   default: [],
 });
 

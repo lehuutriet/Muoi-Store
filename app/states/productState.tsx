@@ -13,7 +13,7 @@ export const allProductsAtom = atom({
   default: [],
 });
 
-export const productIdsAtom = atom({
+export const productIdsAtom = atom<string[]>({
   key: "productIds",
   default: [],
 });

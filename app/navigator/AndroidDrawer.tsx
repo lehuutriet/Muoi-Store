@@ -7,6 +7,8 @@ import {
   Text,
   StyleSheet,
   View,
+  StyleProp,
+  ViewStyle,
   // ViewProps,
 } from "react-native";
 import {
@@ -34,16 +36,47 @@ import MenuGroups from "./Menu";
 
 import { userAtom } from "../states";
 import StackScreen from "./StackScreen";
+interface AndroidDrawerProps {
+  pushToken?: string;
+  onLoggedOut: () => void;
+}
+interface DrawerViewProps {
+  style?: StyleProp<ViewStyle>;
+}
 
-const AndroidDrawer = ({ pushToken, onLoggedOut }) => {
-  const [userInfo, setUserInfo] = useRecoilState(userAtom);
+interface UserInfo {
+  id: string;
+  STORE_NAME: string;
+  WIFI: string;
+  PUSH_TOKEN: string;
+  [key: string]: any;
+}
+interface DataAtom {
+  [key: string]: {
+    all: any;
+    ids: any;
+    idData: (id: string) => any;
+  };
+}
+type CollectionType = {
+  products: "products";
+  categories: "categories";
+  orders: "orders";
+  tables: "tables";
+};
 
+const AndroidDrawer: React.FC<AndroidDrawerProps> = ({
+  pushToken,
+  onLoggedOut,
+}) => {
+  const [userInfo, setUserInfo] = useRecoilState<UserInfo>(userAtom);
   const styles = useStyleSheet(styleSheet);
   const theme = useTheme();
   const { t } = useTranslation();
   const { getAllItem } = useDatabases();
   const { logout, getUserPrefs, updateUserPrefs } = useAccounts();
   const drawer = useRef<DrawerLayoutAndroid>(null);
+
   // Execute navigation when menuItem is pressed
   const onNavigate = (screenName: string, method: string) => {
     drawer.current?.closeDrawer();
@@ -52,20 +85,22 @@ const AndroidDrawer = ({ pushToken, onLoggedOut }) => {
   const openDrawer = () => {
     drawer.current?.openDrawer();
   };
-  // import logout function for logout button
 
   const loadDatabases = useRecoilCallback(
     ({ set }) =>
-      async (collection: any, queries: any = []) => {
+      async (collection: keyof typeof COLLECTION_IDS, queries: any[] = []) => {
         const allData = await getAllItem(collection, queries);
-        set(DATA_ATOM[collection].all, allData);
-        const ids = [];
+        const atomData = DATA_ATOM[collection] as DataAtom[string];
+
+        set(atomData.all, allData);
+        const ids: string[] = [];
+
         for (const data of allData) {
           ids.push(data.$id);
-          const idData = DATA_ATOM[collection].idData;
-          set(idData(data.$id), data);
+          set(atomData.idData(data.$id), data);
         }
-        set(DATA_ATOM[collection].ids, ids);
+
+        set(atomData.ids, ids);
       },
     []
   );
@@ -81,9 +116,13 @@ const AndroidDrawer = ({ pushToken, onLoggedOut }) => {
         PUSH_TOKEN: pushToken || "",
       });
       updateUserPrefs(userPrefs);
-      loadDatabases(COLLECTION_IDS.categories);
-      loadDatabases(COLLECTION_IDS.tables, [Query.orderAsc("name")]);
-      loadDatabases(COLLECTION_IDS.products);
+
+      // Sử dụng type assertion để xác nhận kiểu
+      loadDatabases(COLLECTION_IDS.categories as keyof CollectionType);
+      loadDatabases(COLLECTION_IDS.tables as keyof CollectionType, [
+        Query.orderAsc("name"),
+      ]);
+      loadDatabases(COLLECTION_IDS.products as keyof CollectionType);
     }
     initData();
   }, []);
@@ -121,7 +160,10 @@ const AndroidDrawer = ({ pushToken, onLoggedOut }) => {
               name="log-out-outline"
             />
           )}
-          onPress={() => logout() && onLoggedOut()}
+          onPress={async () => {
+            await logout();
+            onLoggedOut();
+          }}
         >
           {t("logout")}
         </Button>

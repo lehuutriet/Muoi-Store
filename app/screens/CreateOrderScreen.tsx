@@ -5,6 +5,8 @@ import {
   Pressable,
   TouchableHighlight,
   Alert,
+  ViewStyle,
+  TextStyle,
 } from "react-native";
 
 import React, { useCallback, useEffect, useState } from "react";
@@ -28,28 +30,66 @@ import ProductList from "../components/product/ProductList";
 import { CategoryScrollbar } from "../components/category";
 import {
   allCategoryAtom,
-  currentOrderAtom,
   allProductsAtom,
   productIdsAtom,
   productAtomFamily,
 } from "../states";
+import { currentOrderAtom } from "../states/orderState";
+import { RouteProp } from "@react-navigation/native";
+import { StackNavigationProp } from "@react-navigation/stack";
+// Định nghĩa interfaces cho các order item
+interface OrderItem {
+  price: number;
+  count: number;
+  $id: string;
+  name: string;
+}
+type RootStackParamList = {
+  CreateOrderScreen: { method: string };
+  ReviewOrderScreen: undefined;
+  // Thêm các route khác nếu cần
+};
+
+// Định nghĩa kiểu cho props
+type CreateOrderScreenProps = {
+  route: RouteProp<RootStackParamList, "CreateOrderScreen">;
+  navigation: StackNavigationProp<RootStackParamList>;
+};
+
+// Định nghĩa kiểu cho product
+interface Product {
+  $id: string;
+  name: string;
+  photo: string;
+  photoUrl: string;
+  price: number;
+  cost: number;
+  category: string;
+  count: number;
+  description: string;
+}
+interface Order {
+  $id: string;
+  note: string;
+  table: string;
+  discount: number;
+  subtract: number;
+  total: number;
+  date: Date;
+  order: OrderItem[];
+}
+// Định nghĩa interface cho style
+interface OrderStyles {
+  container: ViewStyle;
+  bottomBtn: ViewStyle;
+  btnType: ViewStyle;
+}
 
 const CheckoutButton = (): React.ReactElement => {
   const styles = useStyleSheet(styleSheet);
   const { t } = useTranslation();
-  const [order, setOrder] = useRecoilState(currentOrderAtom);
-  const [totalPrice, setTotalPrice] = useState(0);
-
-  // const calculateTotalPrice = useCallback(() => {
-  //   const sum = order.order.reduce((acc, item) => {
-  //     if (item.price && item.count) {
-  //       return acc + item.price * item.count;
-  //     }
-  //     return acc;
-  //   }, 0);
-  //   console.log("setTotalPrice::", sum, order.order);
-  //   setTotalPrice(sum);
-  // }, []);
+  const [order, setOrder] = useRecoilState<Order>(currentOrderAtom);
+  const [totalPrice, setTotalPrice] = useState<number>(0);
 
   useEffect(() => {
     const sum = order.order.reduce((acc, item) => {
@@ -60,11 +100,11 @@ const CheckoutButton = (): React.ReactElement => {
     }, 0);
     console.log("setTotalPrice::", sum, order.order.length);
     setTotalPrice(sum);
-    // calculateTotalPrice();
   }, [order.order]);
+
   return (
-    <Layout level="1" style={styles.bottomBtn}>
-      <View style={styles.btnType}>
+    <Layout level="1" style={styles.bottomBtn as ViewStyle}>
+      <View style={styles.btnType as ViewStyle}>
         <View
           style={{ paddingLeft: 20, display: "flex", flexDirection: "row" }}
         >
@@ -113,14 +153,12 @@ const CheckoutButton = (): React.ReactElement => {
   );
 };
 
-const CreateOrderScreen = ({ route, navigation }) => {
-  // console.log("CreateOrderScreen called::", route.params);
-  // navigation.setOptions({ title: route.params.title });
+const CreateOrderScreen = ({ route, navigation }: CreateOrderScreenProps) => {
   const styles = useStyleSheet(styleSheet);
   const { t } = useTranslation();
   const [selectedCategory, setSelectedCategory] = useState("all");
 
-  const productData = useRecoilValue(allProductsAtom);
+  const productData = useRecoilValue<Product[]>(allProductsAtom);
   const resetOrder = useResetRecoilState(currentOrderAtom);
 
   // Reset Product List
@@ -131,11 +169,15 @@ const CreateOrderScreen = ({ route, navigation }) => {
           set(productAtomFamily(product.$id), product);
         }
       },
-    []
+    [productData]
   );
 
   useEffect(() => {
-    if (route.params.method && route.params.method === "create") {
+    if (
+      route.params &&
+      route.params.method &&
+      route.params.method === "create"
+    ) {
       resetProductList();
       console.log("CreateOrderScreen called::", route.params);
       // reset product list when new order is selected
@@ -145,12 +187,12 @@ const CreateOrderScreen = ({ route, navigation }) => {
 
     // }
     return () => {
-      // resetProductList();
+      // cleanup
     };
-  }, []);
+  }, [route.params, resetProductList, resetOrder]);
 
   return (
-    <Layout level="1" style={styles.container}>
+    <Layout level="1" style={styles.container as ViewStyle}>
       <CategoryScrollbar
         selectedCategory={selectedCategory}
         setSelectedCategory={setSelectedCategory}
@@ -165,16 +207,12 @@ const CreateOrderScreen = ({ route, navigation }) => {
   );
 };
 
-const styleSheet = StyleService.create({
+const styleSheet = StyleService.create<OrderStyles>({
   container: {
     flex: 1,
     width: "100%",
     justifyContent: "center",
     alignItems: "center",
-    // flexDirection: "row",
-    // flexWrap: "wrap",
-    // paddingHorizontal: 20,
-    // margin:10,
   },
   bottomBtn: {
     position: "absolute",
@@ -189,7 +227,6 @@ const styleSheet = StyleService.create({
     bottom: 0,
     borderRadius: 5,
   },
-
   btnType: {
     display: "flex",
     flexDirection: "row",

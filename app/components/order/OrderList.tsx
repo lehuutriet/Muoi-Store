@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from "react";
 import {
-  ListRenderItemInfo,
+  StyleSheet,
   View,
   ImageBackground,
   Dimensions,
   TouchableOpacity,
   Alert,
+  ViewStyle,
+  TextStyle,
+  ImageStyle,
 } from "react-native";
+import { StyleProp } from "react-native"; // Thêm import này nếu chưa có
+
 import {
   Button,
   Card,
@@ -39,7 +44,39 @@ import {
   productIdsAtom,
   productAtomFamily,
 } from "../../states";
-
+interface Product {
+  $id: string;
+  name: string;
+  photo: string;
+  photoUrl: string;
+  price: number;
+  cost: number;
+  category: string;
+  count: number;
+  description: string;
+}
+interface OrderListStyles {
+  container: ViewStyle;
+  contentContainer: ViewStyle;
+  cardItem: ViewStyle;
+  productCard: ViewStyle;
+  buttons: ViewStyle;
+  cardInfo: ViewStyle;
+  cardImg: ImageStyle;
+  countIcon: ImageStyle;
+}
+interface OrderInterface {
+  $id: string;
+  note: string;
+  table: string;
+  total: number;
+  discount: number;
+  subtract: number;
+  $createdAt: string;
+  date: string;
+  status: string;
+  order: string;
+}
 const OrderList = ({
   status = "all",
   date = new Date(),
@@ -48,12 +85,13 @@ const OrderList = ({
   const theme = useTheme();
   const { t } = useTranslation();
   const { getAllItem, createItem, updateItem, deleteItem } = useDatabases();
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState<OrderInterface[]>([]);
   const [waiting, setWaiting] = useState(false);
   const [order, setOrder] = useRecoilState(currentOrderAtom);
   const [loadMore, setLoadMore] = useState(false);
   const [orderLimit, setOrderLimit] = useState(20);
-  const productData = useRecoilValue(allProductsAtom);
+  const productData = useRecoilValue<Product[]>(allProductsAtom);
+
   const resetProductList = useRecoilCallback(
     ({ set }) =>
       async () => {
@@ -65,7 +103,7 @@ const OrderList = ({
   );
 
   useEffect(() => {
-    let queries = [];
+    let queries: string[] = [];
     const formatDate = date.toLocaleString("en-GB").slice(0, 10);
     switch (status) {
       case "all":
@@ -101,7 +139,11 @@ const OrderList = ({
     loadOrders();
   }, [status, date, orderLimit]);
 
-  const showAlertConfirm = (tilte: string, message: string, item) =>
+  const showAlertConfirm = (
+    tilte: string,
+    message: string,
+    item: OrderInterface
+  ) =>
     Alert.alert(
       tilte,
       message,
@@ -126,7 +168,7 @@ const OrderList = ({
       }
     );
 
-  const viewOrder = async (orderInfo) => {
+  const viewOrder = async (orderInfo: any) => {
     console.log("orderInfo::", orderInfo);
     setOrder({
       $id: orderInfo.$id,
@@ -143,7 +185,7 @@ const OrderList = ({
     });
   };
 
-  const cancelOrder = async (orderInfo) => {
+  const cancelOrder = async (orderInfo: any) => {
     setWaiting(true);
     console.log("cancelOrder called::", orderInfo);
     await deleteItem(COLLECTION_IDS.orders, orderInfo.$id);
@@ -164,11 +206,11 @@ const OrderList = ({
     );
   };
 
-  const renderItem = (info): React.ReactElement => {
+  const renderItem = (info: any): React.ReactElement => {
     // info.item.order = JSON.stringify(info.item.order);
     return (
       <Card
-        style={[styles.cardItem]}
+        style={[styles.cardItem as ViewStyle]}
         // status="basic"
         // header={(headerProps) => renderItemHeader(headerProps, info)}
         // footer={renderItemFooter}
@@ -180,7 +222,7 @@ const OrderList = ({
               });
         }}
       >
-        <View style={styles.productCard}>
+        <View style={styles.productCard as ViewStyle}>
           <View
             style={{
               display: "flex",
@@ -258,7 +300,7 @@ const OrderList = ({
         /> */}
 
           {info.item.status === "unpaid" ? (
-            <Layout level="1" style={styles.buttons}>
+            <Layout level="1" style={styles.buttons as ViewStyle}>
               <Button
                 style={{
                   flex: 1,
@@ -291,7 +333,7 @@ const OrderList = ({
               </Button>
             </Layout>
           ) : (
-            <Layout level="1" style={styles.buttons}>
+            <Layout level="1" style={styles.buttons as ViewStyle}>
               <Button
                 style={{
                   flex: 1,
@@ -322,11 +364,10 @@ const OrderList = ({
     <>
       <WaitingModal waiting={waiting} />
       <List
-        style={styles.container}
-        contentContainerStyle={styles.contentContainer}
+        style={styles.container as ViewStyle}
+        contentContainerStyle={styles.contentContainer as ViewStyle}
         data={orders}
         renderItem={renderItem}
-        // numColumns={1}
         onScroll={() => {
           status === "all" ? setLoadMore(true) : setLoadMore(false);
         }}
@@ -341,7 +382,7 @@ const OrderList = ({
   );
 };
 
-const styleSheet = StyleService.create({
+const styleSheet = StyleService.create<OrderListStyles>({
   container: {
     flex: 1,
     width: "100%",

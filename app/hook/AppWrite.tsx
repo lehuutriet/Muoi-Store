@@ -10,7 +10,8 @@ import {
   ID,
   Teams,
   AppwriteException,
-} from "appwrite";
+} from "react-native-appwrite";
+
 import { AppwriteContext } from "../contexts/AppContext";
 import {
   allProductsAtom,
@@ -27,6 +28,12 @@ import {
   orderAtomFamily,
 } from "../states";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const client = new Client();
+client
+  .setEndpoint("https://store.hjm.bid/v1")
+  .setProject("67b3e08f00152bbd6ed4")
+  .setPlatform("com.muoistore.app");
 
 // Setting appwrite connection info here
 let APPWRITE_ENDPOINT = "https://store.hjm.bid/v1";
@@ -79,18 +86,6 @@ export const DATA_ATOM = {
 
 export function createAppwriteClient(endpoint: string, id: string) {
   try {
-    console.log("Creating Appwrite client...", { endpoint, id });
-    const client = new Client();
-
-    client.setEndpoint(endpoint);
-    client.setProject(id);
-
-    client.headers = {
-      "X-Appwrite-Project": PROJECT_ID,
-      "X-Appwrite-Response-Format": "11.0.0",
-      "content-type": "application/json",
-    };
-
     const storage = new Storage(client);
     const graphql = new Graphql(client);
     const account = new Account(client);
@@ -195,43 +190,25 @@ export function useAccounts() {
       }
     );
   };
-
   const getSession = async () => {
-    console.log("getSession called::");
-    return new Promise(async (resolve) => {
+    try {
+      // const sessionId = await AsyncStorage.getItem("currentSessionID");
+      // if (!sessionId) return false;
+
       try {
-        // Check current active session
-        const cacheSessionID = await AsyncStorage.getItem("currentSessionID");
-        const cacheUserEmail = await AsyncStorage.getItem("userEmail");
-        if (cacheSessionID) {
-          account.getSession(cacheSessionID).then(
-            function (response) {
-              // console.log("currentSession true::", response);
-              if (
-                response.providerUid &&
-                response.providerUid === cacheUserEmail
-              ) {
-                console.log("currentSession true::");
-                resolve(response);
-              } else {
-                console.log("currentSession false::");
-                resolve(false);
-              }
-            },
-            function (err: AppwriteException) {
-              resolve(err.code === 0 ? "error" : false);
-            }
-          );
-        } else {
-          console.log("no cache Session::");
-          resolve(false);
-        }
-      } catch (error) {
-        console.log("getSession error::", error);
-        resolve("error");
+        console.log("get-sessionId start::");
+        const response = await account.getSession("current");
+        console.log("get-sessionId end::");
+        return response;
+      } catch (err) {
+        // await AsyncStorage.removeItem("currentSessionID");
+        return false;
       }
-    });
+    } catch (error) {
+      return "error";
+    }
   };
+
   const createUser = async (
     email: string,
     password: string,
@@ -251,18 +228,25 @@ export function useAccounts() {
         return false;
       });
   };
-  // Thay createEmailSession bằng createSession
+
   const login = async (email: string, password: string) => {
-    return account
-      .createSession(email, password)
-      .then(async (response: any) => {
-        await AsyncStorage.setItem("currentSessionID", response.$id);
-        await AsyncStorage.setItem("userEmail", email);
-        return response;
-      })
-      .catch((err: AppwriteException) => {
-        return err.code === 0 ? "error" : false;
-      });
+    try {
+      console.log("login start1::", account);
+
+      const response = await account.createEmailPasswordSession(
+        email,
+        password
+      );
+      console.log("login start2::", account);
+      await Promise.all([
+        AsyncStorage.setItem("currentSessionID", response.$id),
+        AsyncStorage.setItem("userEmail", email),
+      ]);
+      console.log("login start3::", account);
+      return response;
+    } catch (err: any) {
+      return err.code === 0 ? "error" : false;
+    }
   };
   const logout = async () => {
     console.log("logout called::");
@@ -313,7 +297,7 @@ export function useDatabases() {
   const { getFileView } = useStorage();
 
   // Products Databases Function
-  async function getAllItem(collectionId: any, queries = []) {
+  async function getAllItem(collectionId: any, queries: string[] = []) {
     const userPrefs = await getUserPrefs();
     const items = await databases.listDocuments(
       userPrefs.DATABASE_ID,

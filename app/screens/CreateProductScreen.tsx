@@ -1,5 +1,13 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, Image, Dimensions, Alert } from "react-native";
+import {
+  View,
+  Image,
+  Dimensions,
+  Alert,
+  ViewStyle,
+  ImageStyle,
+  TextStyle,
+} from "react-native";
 
 import {
   Text,
@@ -21,11 +29,12 @@ import { WaitingModal } from "../components/common";
 import { createNumberMask, useMaskedInputProps } from "react-native-mask-input";
 
 import { productIdsAtom, productAtomFamily, allCategoryAtom } from "../states";
-import { useRecoilState, useRecoilCallback } from "recoil";
+import { useRecoilState, useRecoilCallback, atom } from "recoil";
 
 import { useStorage, useDatabases, COLLECTION_IDS } from "../hook/AppWrite";
 import { useTranslation } from "react-i18next";
-
+import { RouteProp } from "@react-navigation/native";
+import { StackNavigationProp } from "@react-navigation/stack";
 import * as ImagePicker from "expo-image-picker";
 type ImagePickerResult = ImagePicker.ImagePickerResult & {
   cancelled?: boolean;
@@ -37,7 +46,31 @@ const vndMask = createNumberMask({
   separator: ",",
   precision: 3,
 });
+type RootStackParamList = {
+  CreateProductScreen: {
+    title: string;
+    method: string;
+    item?: {
+      $id?: string;
+      photo?: string;
+      photoUrl?: string;
+      name?: string;
+      price?: number;
+      cost?: number;
+      description?: string;
+      category?: string;
+    };
+  };
+};
 
+type CreateProductScreenRouteProp = RouteProp<
+  RootStackParamList,
+  "CreateProductScreen"
+>;
+type CreateProductScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  "CreateProductScreen"
+>;
 const requiredText = (): React.ReactElement => {
   const { t } = useTranslation();
   return (
@@ -47,7 +80,13 @@ const requiredText = (): React.ReactElement => {
   );
 };
 
-const CreateProductScreen = ({ route, navigation }) => {
+const CreateProductScreen = ({
+  route,
+  navigation,
+}: {
+  route: CreateProductScreenRouteProp;
+  navigation: CreateProductScreenNavigationProp;
+}) => {
   const { uploadFile, getFileView } = useStorage();
   const { getAllItem, createItem, updateItem, deleteItem } = useDatabases();
   const styles = useStyleSheet(styleSheet);
@@ -59,12 +98,17 @@ const CreateProductScreen = ({ route, navigation }) => {
     uri: "file:///data/user/0/host.exp.exponent/cache/ExperienceData/%2540kennytat%252Fmuoi-store/ReactNative-snapshot-image8725451301359036851.png",
   });
 
-  const [categories] = useRecoilState(allCategoryAtom);
-  const [photoID, setPhotoID] = useState(null);
+  interface Category {
+    $id: string;
+    name: string;
+  }
+
+  const [categories] = useRecoilState<Category[]>(allCategoryAtom);
+  const [photoID, setPhotoID] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [price, setPrice] = useState(null);
-  const [cost, setCost] = useState(null);
+  const [price, setPrice] = useState<string | null>(null);
+  const [cost, setCost] = useState<string | null>(null);
   const [selectedCategoryIndex, setSelectedCategoryIndex] =
     React.useState<IndexPath>(new IndexPath(0));
 
@@ -129,7 +173,7 @@ const CreateProductScreen = ({ route, navigation }) => {
     }
   };
 
-  const showAlert = (tilte, message) =>
+  const showAlert = (tilte: string, message: string) =>
     Alert.alert(
       tilte,
       message,
@@ -195,7 +239,7 @@ const CreateProductScreen = ({ route, navigation }) => {
     let data = {
       name: name,
       price: price,
-      cost: parseInt(cost.replace(/\D/g, "")),
+      cost: parseInt((cost ?? "0").replace(/\D/g, "")),
       category:
         categories.length > 0 && selectedCategoryIndex.row > 0
           ? categories[selectedCategoryIndex.row - 1].$id
@@ -223,7 +267,7 @@ const CreateProductScreen = ({ route, navigation }) => {
           : method === "update"
           ? await updateItem(
               COLLECTION_IDS.products,
-              route.params.item.$id,
+              route.params.item?.$id ?? "",
               data
             )
           : null;
@@ -254,10 +298,10 @@ const CreateProductScreen = ({ route, navigation }) => {
   return (
     <Layout level="1" style={{ height: Dimensions.get("window").height - 50 }}>
       {/* upload photo */}
-      <Layout level="2" style={[styles.photoLayout, {}]}>
+      <Layout level="2" style={styles.photoLayout as ViewStyle}>
         <View>
           <Button
-            style={[styles.button, { marginBottom: 5 }]}
+            style={[styles.button, { marginBottom: 5 }] as ViewStyle[]}
             status="primary"
             appearance="outline"
             size="small"
@@ -274,7 +318,7 @@ const CreateProductScreen = ({ route, navigation }) => {
           </Button>
 
           <Button
-            style={styles.button}
+            style={styles.button as ViewStyle}
             status="primary"
             appearance="outline"
             size="small"
@@ -291,25 +335,28 @@ const CreateProductScreen = ({ route, navigation }) => {
           </Button>
         </View>
         <View style={{ paddingLeft: 10 }}>
-          {photo && <Image source={{ uri: photo.uri }} style={styles.photo} />}
+          {photo && (
+            <Image
+              source={{ uri: photo.uri }}
+              style={styles.photo as ImageStyle}
+            />
+          )}
         </View>
       </Layout>
 
-      <Layout level="1" style={styles.productInfo}>
+      <Layout level="1" style={styles.productInfo as ViewStyle}>
         {/* product name */}
         <Input
-          style={styles.input}
+          style={styles.input as TextStyle}
           value={name}
           label={t("product_name")}
           placeholder={t("product_example")}
           caption={() => (required && !name ? requiredText() : <></>)}
-          // accessoryRight={renderIcon}
-          // secureTextEntry={secureTextEntry}
           onChangeText={(nextValue) => setName(nextValue)}
         />
         {/* product description */}
         <Input
-          style={styles.input}
+          style={styles.input as any}
           value={description}
           label={t("product_description")}
           placeholder=""
@@ -318,16 +365,16 @@ const CreateProductScreen = ({ route, navigation }) => {
           // secureTextEntry={secureTextEntry}
           onChangeText={(nextValue) => setDescription(nextValue)}
         />
-        <Layout level="1" style={styles.price}>
+        <Layout level="1" style={styles.price as ViewStyle}>
           {/* product price */}
           <Input
             {...useMaskedInputProps({
-              value: price,
+              value: price || "",
               onChangeText: (masked, unmasked) => setPrice(unmasked),
               mask: vndMask,
             })}
             style={[
-              styles.input,
+              styles.input as TextStyle,
               {
                 paddingRight: 10,
                 width: Dimensions.get("screen").width / 2 - 10,
@@ -343,12 +390,12 @@ const CreateProductScreen = ({ route, navigation }) => {
           {/* product cost */}
           <Input
             {...useMaskedInputProps({
-              value: cost,
+              value: cost || "",
               onChangeText: (masked, unmasked) => setCost(unmasked),
               mask: vndMask,
             })}
             style={[
-              styles.input,
+              styles.input as TextStyle,
               { width: Dimensions.get("screen").width / 2 - 10 },
             ]}
             inputMode="numeric"
@@ -372,10 +419,15 @@ const CreateProductScreen = ({ route, navigation }) => {
                 ? selectedCategoryIndex.row > 0
                   ? categories[selectedCategoryIndex.row - 1].name
                   : t("choose_category")
-                : null
+                : ""
             }
             selectedIndex={selectedCategoryIndex}
-            onSelect={(index: IndexPath) => setSelectedCategoryIndex(index)}
+            onSelect={(index: IndexPath | IndexPath[]) => {
+              if (index instanceof IndexPath) {
+                setSelectedCategoryIndex(index);
+              }
+            }}
+            multiSelect={false} // Thêm dòng này để chỉ định rằng chỉ chọn một mục
           >
             {categories.length > 0 ? (
               [{ name: t("choose_category"), $id: "0" }]
@@ -391,7 +443,7 @@ const CreateProductScreen = ({ route, navigation }) => {
       </Layout>
       {/* function button */}
       {route.params.method === "create" ? (
-        <Layout level="1" style={styles.buttons}>
+        <Layout level="1" style={styles.buttons as ViewStyle}>
           <Button
             style={{ flex: 1, marginRight: 5, borderWidth: 0 }}
             appearance="outline"
@@ -408,7 +460,7 @@ const CreateProductScreen = ({ route, navigation }) => {
           </Button>
         </Layout>
       ) : (
-        <Layout level="1" style={styles.buttons}>
+        <Layout level="1" style={styles.buttons as ViewStyle}>
           <Button
             style={{ flex: 1, marginRight: 5, borderWidth: 0 }}
             appearance="outline"
@@ -465,7 +517,7 @@ const styleSheet = StyleService.create({
     width: 80,
     height: 80,
     borderRadius: 5,
-  },
+  } as ImageStyle,
   icon: {
     width: 20,
     height: 20,

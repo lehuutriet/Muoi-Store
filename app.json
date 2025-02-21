@@ -1,21 +1,28 @@
 {
   "expo": {
     "name": "Muoi-Store",
-    "slug": "Muoi-Store",
+    "slug": "Muoi-Store", 
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "muoi-store",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.muoistore.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.muoistore.app",
+      "permissions": [
+        "CAMERA",
+        "INTERNET", 
+        "ACCESS_NETWORK_STATE"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -34,6 +41,7 @@
         }
       ],
       "expo-barcode-scanner"
+     
     ],
     "experiments": {
       "typedRoutes": true
