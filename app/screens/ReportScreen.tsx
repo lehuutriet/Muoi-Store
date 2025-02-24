@@ -1,4 +1,4 @@
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, ViewStyle } from "react-native";
 
 import React from "react";
 import {
@@ -7,10 +7,10 @@ import {
   StyleService,
   useStyleSheet,
 } from "@ui-kitten/components";
-const ReportScreen = ({ navigation }) => {
+const ReportScreen = ({ navigation }: { navigation: any }) => {
   const styles = useStyleSheet(styleSheet);
   return (
-    <View style={styles.container}>
+    <View style={styles.container as ViewStyle}>
       <View>
         <Text> REPORT SCREEN</Text>
         <Button onPress={() => navigation.navigate("ChatScreen")}>

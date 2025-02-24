@@ -5,6 +5,8 @@ import {
   TextInput,
   Dimensions,
   ScrollView,
+  ViewStyle,
+  StyleProp,
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import {
@@ -35,8 +37,45 @@ import {
   categoryIdsAtom,
 } from "../states";
 import { useDatabases, COLLECTION_IDS } from "../hook/AppWrite";
+import { MaterialTopTabNavigationProp } from "@react-navigation/material-top-tabs";
+import { ParamListBase } from "@react-navigation/native";
+import {
+  MaterialTopTabBarProps,
+  MaterialTopTabNavigationOptions,
+} from "@react-navigation/material-top-tabs";
 
 const { Navigator, Screen } = createMaterialTopTabNavigator();
+interface FunctionCardProps {
+  cardProps: {
+    visible: boolean;
+    method: string;
+    itemInfo: {
+      $id: string;
+      name: string;
+    };
+  };
+  setCardPropsCallback: (props: {
+    method: string;
+    visible: boolean;
+    itemInfo: {
+      $id: string;
+      name: string;
+    };
+  }) => void;
+}
+
+// Định nghĩa interface cho props của CategoryCard
+interface CategoryCardProps {
+  categoryId: string;
+  setCardPropsCallback: (props: {
+    method: string;
+    visible: boolean;
+    itemInfo: {
+      $id: string;
+      name: string;
+    };
+  }) => void;
+}
 
 const DEFAULT_CARD_PROPS = {
   visible: false,
@@ -94,10 +133,10 @@ const ProductScreen = () => {
   );
 };
 
-const FunctionCard = ({
+const FunctionCard: React.FC<FunctionCardProps> = ({
   cardProps,
   setCardPropsCallback,
-}): React.ReactElement => {
+}) => {
   const { t } = useTranslation();
   const theme = useTheme();
   const { getAllItem } = useDatabases();
@@ -176,7 +215,7 @@ const CategoryCard = ({
           itemInfo: category,
         })
       }
-      style={styles.categoryCard}
+      style={styles.categoryCard as ViewStyle}
       // title={category.name}
       // description="A set of React Native components"
       // accessoryLeft={(props) => (
@@ -241,8 +280,8 @@ const CategoryScreen = () => {
   return (
     <Layout style={{ flex: 1, alignItems: "center" }}>
       <ScrollView
-        style={styles.list}
-        contentContainerStyle={styles.listContainer}
+        style={styles.list as StyleProp<ViewStyle>}
+        contentContainerStyle={styles.listContainer as StyleProp<ViewStyle>}
       >
         {categoryIds.map((id) => (
           <MemoizedCategoryCard
@@ -252,7 +291,7 @@ const CategoryScreen = () => {
           />
         ))}
 
-        <Layout style={{ paddingBottom: 100 }}></Layout>
+        <Layout style={{ paddingBottom: 100 } as StyleProp<ViewStyle>}></Layout>
       </ScrollView>
 
       <FunctionCard
@@ -263,14 +302,20 @@ const CategoryScreen = () => {
   );
 };
 
-const TopTabBar = ({ navigation, state }) => {
+interface TopTabBarProps extends MaterialTopTabBarProps {
+  // Kế thừa tất cả props từ MaterialTopTabBarProps
+}
+
+const TopTabBar: React.FC<TopTabBarProps> = (props) => {
   const styles = useStyleSheet(styleSheet);
   const { t } = useTranslation();
   return (
     <TabBar
-      style={styles.topTabBar}
-      selectedIndex={state.index}
-      onSelect={(index) => navigation.navigate(state.routeNames[index])}
+      style={styles.topTabBar as ViewStyle}
+      selectedIndex={props.state.index}
+      onSelect={(index) =>
+        props.navigation.navigate(props.state.routeNames[index])
+      }
     >
       <Tab title={t("product")} />
       <Tab title={t("category")} />
@@ -281,17 +326,20 @@ const TopTabBar = ({ navigation, state }) => {
 const TabNavigator = () => {
   const { t } = useTranslation();
   return (
-    <Navigator tabBar={(props) => <TopTabBar {...props} />}>
+    <Navigator
+      tabBar={(props) => <TopTabBar {...props} />}
+      screenOptions={{} as MaterialTopTabNavigationOptions}
+    >
       <Screen name="ProductScreen" component={ProductScreen} />
       <Screen name="CategoryScreen" component={CategoryScreen} />
     </Navigator>
   );
 };
 
-const ManageProductScreen = ({ navigation }) => {
+const ManageProductScreen = ({}) => {
   const styles = useStyleSheet(styleSheet);
   return (
-    <View style={styles.container}>
+    <View style={styles.container as ViewStyle}>
       <TabNavigator />
     </View>
   );
@@ -304,29 +352,28 @@ const styleSheet = StyleService.create({
     alignItems: "center",
     flexDirection: "row",
     flexWrap: "wrap",
-  },
+  } as ViewStyle,
   list: {
     width: "100%",
-    // maxHeight: 320,
-  },
+  } as ViewStyle,
   listContainer: {
     flex: 1,
     paddingHorizontal: 8,
     paddingVertical: 4,
     paddingBottom: 100,
-  },
+  } as ViewStyle,
   categoryCard: {
     borderRadius: 5,
     margin: 5,
     elevation: 2,
-  },
+  } as ViewStyle,
   topTabBar: {
     height: 50,
-  },
+  } as ViewStyle,
   icon: {
     width: 20,
     height: 20,
-  },
+  } as ViewStyle,
 });
 
 export default ManageProductScreen;

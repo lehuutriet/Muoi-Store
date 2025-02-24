@@ -9,11 +9,13 @@ import {
   StyleService,
   useStyleSheet,
 } from "@ui-kitten/components";
+import { ViewStyle } from "react-native";
 const StatisticScreen = () => {
   const styles = useStyleSheet(styleSheet);
   const { t } = useTranslation();
   return (
-    <Layout style={styles.mainLayout}>
+    <Layout style={styles.mainLayout as ViewStyle}>
+      <Text>{`${t("statistic")}`}</Text>
       {/* <Text category="h1">{`${t("setting")}`}</Text> */}
       {/* <Layout style={styles.settingContent}>
         <Button

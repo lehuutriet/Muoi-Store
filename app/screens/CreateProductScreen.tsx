@@ -111,30 +111,70 @@ const CreateProductScreen = ({
   const [cost, setCost] = useState<string | null>(null);
   const [selectedCategoryIndex, setSelectedCategoryIndex] =
     React.useState<IndexPath>(new IndexPath(0));
-
+  const { set } = useRecoilCallback(
+    ({ set }) =>
+      () => ({ set }),
+    []
+  )();
+  const getFileIdFromUrl = (url: string) => {
+    const matches = url.match(/files\/(.*?)\/view/);
+    if (matches && matches[1]) {
+      return matches[1];
+    }
+    return null;
+  };
   useEffect(() => {
     console.log("CreateProductScreen called::", route.params);
     navigation.setOptions({ headerTitle: route.params.title });
     const item = route.params.item;
+
     if (item && item.$id) {
-      if (item.photo) {
-        setPhotoID(item.photo);
+      // Kiểm tra cả photo và photoUrl
+      if (item.photo || item.photoUrl) {
+        // Nếu có photoUrl thì lấy fileId từ url
+        if (item.photoUrl) {
+          const fileId = getFileIdFromUrl(item.photoUrl);
+          if (fileId) {
+            setPhotoID(fileId);
+          }
+        }
+        // Nếu có photo thì dùng trực tiếp
+        if (item.photo) {
+          setPhotoID(item.photo);
+        }
+
+        // Load ảnh nếu có photoID
+        if (photoID) {
+          const loadPhoto = async () => {
+            try {
+              const photoUrl = await getFileView(photoID);
+              if (photoUrl) {
+                setPhoto({ uri: photoUrl });
+              }
+            } catch (error) {
+              console.error("Error loading photo:", error);
+            }
+          };
+          loadPhoto();
+        }
       }
-      if (item.photoUrl) {
-        setPhoto({ uri: item.photoUrl });
-      }
+
       if (item.name) {
         setName(item.name);
       }
+
       if (item.price) {
         setPrice(item.price.toString());
       }
+
       if (item.cost) {
         setCost(item.cost.toString());
       }
+
       if (item.description) {
         setDescription(item.description);
       }
+
       if (item.category) {
         let index = categories.findIndex(
           (category) => category.$id === item.category
@@ -143,7 +183,7 @@ const CreateProductScreen = ({
         setSelectedCategoryIndex(new IndexPath(index));
       }
     }
-  }, []);
+  }, [photoID]); // Thêm photoID vào dependencies
 
   const handleTakePhotoFromCamera = async () => {
     // No permissions request is necessary for launching the image library
@@ -197,17 +237,25 @@ const CreateProductScreen = ({
   const refreshProductList = useRecoilCallback(
     ({ set }) =>
       async () => {
-        const productData = await getAllItem(COLLECTION_IDS.products);
-        const ids = [];
-        for (const product of productData) {
-          ids.push(product.$id);
-          set(productAtomFamily(product.$id), product);
+        try {
+          const productData = await getAllItem(COLLECTION_IDS.products);
+          const ids = [];
+          for (const product of productData) {
+            ids.push(product.$id);
+            // Cập nhật từng product trong atom family
+            set(productAtomFamily(product.$id), product);
+          }
+          set(productIdsAtom, ids);
+        } catch (error) {
+          console.error("Error refreshing product list:", error);
         }
-        set(productIdsAtom, ids);
       },
     []
   );
-
+  useEffect(() => {
+    // Refresh data khi component mount
+    refreshProductList();
+  }, []); // Chạy 1 lần khi component mount
   const onReset = async () => {
     setRequired(false);
     setPhotoID(null);
@@ -235,63 +283,105 @@ const CreateProductScreen = ({
   };
 
   const onCreate = async (method: string, navigateBack: boolean = true) => {
-    setWaiting(true);
-    let data = {
-      name: name,
-      price: price,
-      cost: parseInt((cost ?? "0").replace(/\D/g, "")),
-      category:
-        categories.length > 0 && selectedCategoryIndex.row > 0
-          ? categories[selectedCategoryIndex.row - 1].$id
-          : null,
-      description: description,
-      photo: photoID,
-    };
+    try {
+      setWaiting(true);
 
-    console.log("new object::", method, data);
-    if (!data.name || !data.price || !data.category) {
-      console.log("new object missing::", data);
-      setRequired(true);
-    } else {
-      // console.log("photo upload::", photoUri);
-      if (
-        !photo.uri.startsWith("http") &&
-        photo.uri !== "file:///default.jpeg"
-      ) {
-        const newPhotoID: any = await uploadFile(photo, photoID);
-        data.photo = newPhotoID ? newPhotoID : photoID;
+      let data: any = {
+        name: name.trim(),
+        price: parseFloat((price ?? "0").replace(/\D/g, "")),
+        cost: parseFloat((cost ?? "0").replace(/\D/g, "")),
+        category:
+          categories.length > 0 && selectedCategoryIndex.row > 0
+            ? categories[selectedCategoryIndex.row - 1].$id
+            : null,
+        description: description.trim(),
+        photo: photoID,
+      };
+
+      if (!data.name || !data.price || !data.category) {
+        setRequired(true);
+        setWaiting(false);
+        showAlert("", t("please_fill_required_fields"));
+        return;
       }
-      const result =
-        method === "create"
-          ? await createItem(COLLECTION_IDS.products, data)
-          : method === "update"
-          ? await updateItem(
-              COLLECTION_IDS.products,
-              route.params.item?.$id ?? "",
-              data
-            )
-          : null;
-      console.log("created Product::", result);
+
+      try {
+        if (
+          !photo.uri.startsWith("http") &&
+          photo.uri !== "file:///default.jpeg"
+        ) {
+          console.log("Uploading new photo...");
+          const uploadResponse = (await uploadFile(photo, photoID)) as Response;
+
+          // Kiểm tra response và parse JSON
+          if (uploadResponse && uploadResponse.ok) {
+            const responseData = await uploadResponse.json();
+            console.log("Upload response:", responseData);
+
+            if (responseData && responseData.$id) {
+              data.photo = responseData.$id;
+              const fileViewUrl = await getFileView(responseData.$id);
+              if (fileViewUrl) {
+                data.photoUrl = fileViewUrl;
+              }
+            }
+          } else {
+            console.log("Invalid upload response");
+            data.photo = null;
+          }
+        }
+      } catch (uploadError) {
+        console.error("Error uploading photo:", uploadError);
+        showAlert("", t("upload_photo_error"));
+        return;
+      }
+
+      let result;
+      console.log("Submitting data:", data);
+
+      if (method === "create") {
+        result = await createItem(COLLECTION_IDS.products, data);
+      } else if (method === "update" && route.params.item?.$id) {
+        result = await updateItem(
+          COLLECTION_IDS.products,
+          route.params.item.$id,
+          data
+        );
+      } else {
+        throw new Error("Invalid method or missing product ID");
+      }
+
       if (result && result.$id) {
+        console.log("Operation successful:", result);
+
+        await refreshProductList();
+
         showAlert(
           "",
           method === "create"
             ? t("create_product_success")
             : t("update_product_success")
         );
+
         onReset();
+
+        if (navigateBack) {
+          navigation.goBack();
+        }
       } else {
-        showAlert(
-          "",
-          method === "create"
-            ? t("create_product_error")
-            : t("update_product_error")
-        );
+        throw new Error("Operation failed - no result returned");
       }
-      refreshProductList();
-      navigateBack ? navigation.goBack() : null;
+    } catch (error) {
+      console.error("Error in onCreate:", error);
+      showAlert(
+        "",
+        method === "create"
+          ? t("create_product_error")
+          : t("update_product_error")
+      );
+    } finally {
+      setWaiting(false);
     }
-    setWaiting(false);
   };
 
   //

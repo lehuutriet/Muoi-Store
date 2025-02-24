@@ -1,15 +1,29 @@
+import React, { useState } from "react";
+import { View, ViewStyle } from "react-native";
 import { Badge, Button, Icon, ListItem, Text } from "react-native-elements";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { StyleService, useStyleSheet } from "@ui-kitten/components";
 import usePOSPrinter from "../hook/usePOSPrinter";
 import { useBLE } from "../hook/BLEContext";
-import StringManipulator from "../hook/StringManipulator";
 import PrinterScannerPicker from "../components/PrinterScannerPicker";
-import { useState } from "react";
-import { StyleService, useStyleSheet } from "@ui-kitten/components";
 
-const CheckoutScreen = ({ checkoutItems, onScanPress = null }) => {
+interface CheckoutItem {
+  name: string;
+  price: number;
+  icon: string;
+  quantity: number;
+}
+
+interface CheckoutScreenProps {
+  checkoutItems: CheckoutItem[];
+  onScanPress?: () => void;
+}
+
+const CheckoutScreen: React.FC<CheckoutScreenProps> = ({
+  checkoutItems = [],
+  onScanPress,
+}) => {
   const styles = useStyleSheet(styleSheet);
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState<CheckoutItem[]>(checkoutItems);
   const { printService } = useBLE();
   const { isPrinting, print } = usePOSPrinter();
 
@@ -34,26 +48,26 @@ const CheckoutScreen = ({ checkoutItems, onScanPress = null }) => {
     }
   };
 
-  const getTotal = () => {
-    return checkoutItems
+  const getTotal = (): string => {
+    return items
       .reduce((total, item) => total + item.price * item.quantity, 0)
       .toFixed(2);
   };
 
-  const incrementQuantity = (index) => {
-    const updatedItems = [...checkoutItems];
+  const incrementQuantity = (index: number): void => {
+    const updatedItems = [...items];
     updatedItems[index].quantity++;
     setItems(updatedItems);
   };
 
   return (
-    <View style={styles.container}>
-      {checkoutItems.map((item, index) => (
+    <View style={styles.container as ViewStyle}>
+      {items.map((item, index) => (
         <ListItem key={index} bottomDivider>
           <Icon name={item.icon} type="font-awesome" />
           <ListItem.Content>
             <ListItem.Title>{item.name}</ListItem.Title>
-            <ListItem.Subtitle>${item.price}</ListItem.Subtitle>
+            <ListItem.Subtitle>{item.price}đ</ListItem.Subtitle>
           </ListItem.Content>
           <Badge value={item.quantity} status="primary" />
           <Button
@@ -63,21 +77,15 @@ const CheckoutScreen = ({ checkoutItems, onScanPress = null }) => {
           />
         </ListItem>
       ))}
-      <View style={styles.totalContainer}>
-        <Text h2>{getTotal()} đ</Text>
+
+      <View style={styles.totalContainer as ViewStyle}>
+        <Text h2>{getTotal()}đ</Text>
       </View>
+
       <Button title="Checkout" onPress={onScanPress} />
-      {/* <View style={styles.totalContainer}>
-        <Text h2>{JSON.stringify(device, null, 2)} đ</Text>
-      </View> */}
-      <Button
-        title="Print"
-        // title={
-        //   `Print using ` + (device.current ? device.current.name : "no device")
-        // }
-        disabled={isPrinting}
-        onPress={onPrintPress}
-      />
+
+      <Button title="Print" disabled={isPrinting} onPress={onPrintPress} />
+
       <PrinterScannerPicker />
     </View>
   );

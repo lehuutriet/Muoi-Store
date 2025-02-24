@@ -13,6 +13,9 @@ import {
   ListRenderItemInfo,
   ImageBackground,
   Alert,
+  ImageStyle,
+  ViewStyle,
+  TextStyle,
 } from "react-native";
 import {
   StyleService,
@@ -50,8 +53,51 @@ const vndMask = createNumberMask({
   separator: ",",
   precision: 3,
 });
+interface RouteProps {
+  params?: {
+    receiptData?: any;
+  };
+}
+interface Table {
+  $id: string;
+  name: string;
+}
+interface OrderItem {
+  $id: string;
+  name: string;
+  photoUrl?: string;
+  price: number;
+  count: number;
+}
 
-const ReviewOrderScreen = ({ route, navigation }) => {
+interface UpdateOrderListParams {
+  newItem: OrderItem;
+  method: "add" | "sub";
+}
+interface NavigationProps {
+  navigate: (screen: string, params?: any) => void;
+  setOptions: (options: any) => void;
+  reset: (config: any) => void;
+}
+
+interface StyleProps {
+  container: ViewStyle;
+  cardItem: ViewStyle;
+  productCard: ViewStyle;
+  cardInfo: ViewStyle;
+  cardImg: ImageStyle;
+  countBtn: ViewStyle;
+  countIcon: ViewStyle;
+  input: TextStyle;
+  buttons: ViewStyle;
+}
+const ReviewOrderScreen = ({
+  route,
+  navigation,
+}: {
+  route: RouteProps;
+  navigation: NavigationProps;
+}) => {
   console.log("ReviewOrderScreen params::");
   const styles = useStyleSheet(styleSheet);
   const theme = useTheme();
@@ -63,7 +109,7 @@ const ReviewOrderScreen = ({ route, navigation }) => {
   const userInfo = useRecoilValue(userAtom);
   const [totalPrice, setTotalPrice] = useState(0);
   const [finalPrice, setFinalPrice] = useState(0);
-  const [tables, setTables] = useRecoilState(allTablesAtom);
+  const [tables, setTables] = useRecoilState<Table[]>(allTablesAtom);
   const [selectedTableIndex, setSelectedTableIndex] = React.useState<IndexPath>(
     new IndexPath(0)
   );
@@ -100,7 +146,7 @@ const ReviewOrderScreen = ({ route, navigation }) => {
     }
   }, [order]);
 
-  const updateOrderList = (newItem, method) => {
+  const updateOrderList = (newItem: OrderItem, method: "add" | "sub") => {
     const item = JSON.parse(JSON.stringify(newItem)) as typeof newItem;
     const index = order.order.findIndex((item) => item.$id === newItem.$id);
     let newOrder = [...order.order];
@@ -341,10 +387,10 @@ const ReviewOrderScreen = ({ route, navigation }) => {
     }
   };
 
-  const orderList = (item): React.ReactElement => (
+  const orderList = (item: OrderItem): React.ReactElement => (
     <Card
       key={item.$id}
-      style={styles.cardItem}
+      style={styles.cardItem as ViewStyle}
       // status="basic"
       // header={(headerProps) => renderItemHeader(headerProps, info)}
       // footer={renderItemFooter}
@@ -352,9 +398,9 @@ const ReviewOrderScreen = ({ route, navigation }) => {
         console.log("item pressed::", item);
       }}
     >
-      <View style={styles.productCard}>
+      <View style={styles.productCard as ViewStyle}>
         <ImageBackground
-          style={styles.cardImg}
+          style={styles.cardImg as ViewStyle}
           imageStyle={{ borderRadius: 8 }}
           source={
             item.photoUrl
@@ -364,7 +410,7 @@ const ReviewOrderScreen = ({ route, navigation }) => {
           resizeMode="contain"
         ></ImageBackground>
 
-        <View style={styles.cardInfo}>
+        <View style={styles.cardInfo as ViewStyle}>
           <View style={{ paddingLeft: 10 }}>
             <Text style={{ paddingBottom: 10 }}> {item.name}</Text>
             <View
@@ -383,7 +429,7 @@ const ReviewOrderScreen = ({ route, navigation }) => {
             >
               <Button
                 appearance="ghost"
-                style={styles.countBtn}
+                style={styles.countBtn as ViewStyle}
                 size="tiny"
                 accessoryRight={() => (
                   <Icon
@@ -397,7 +443,7 @@ const ReviewOrderScreen = ({ route, navigation }) => {
               <Text style={{ textAlign: "center" }}>{item.count}</Text>
               <Button
                 appearance="ghost"
-                style={styles.countBtn}
+                style={styles.countBtn as ViewStyle}
                 size="tiny"
                 accessoryRight={() => (
                   <Icon
@@ -423,7 +469,7 @@ const ReviewOrderScreen = ({ route, navigation }) => {
   );
 
   return (
-    <Layout level="1" style={styles.container}>
+    <Layout level="1" style={styles.container as ViewStyle}>
       <ScrollView>
         <View style={{ padding: 2 }}>
           {order && order.order && order.order.length > 0 ? (
@@ -513,7 +559,7 @@ const ReviewOrderScreen = ({ route, navigation }) => {
             <Text> {t("discount") + " (%)"}</Text>
             <Input
               placeholderTextColor={order.discount === null ? "red" : "gray"}
-              value={order.discount ? order.discount.toString() : null}
+              value={order.discount ? order.discount.toString() : ""}
               size="small"
               style={{ width: 100 }}
               textAlign="right"
@@ -535,7 +581,7 @@ const ReviewOrderScreen = ({ route, navigation }) => {
               onChangeText={(nextValue) =>
                 parseInt(nextValue) >= 0 && parseInt(nextValue) <= 100
                   ? setOrder({ ...order, discount: parseInt(nextValue) })
-                  : setOrder({ ...order, discount: null })
+                  : setOrder({ ...order, discount: 0 })
               }
             />
           </View>
@@ -562,7 +608,7 @@ const ReviewOrderScreen = ({ route, navigation }) => {
         <Divider style={{ height: 5 }} />
         <View>
           <Select
-            style={[styles.input, { padding: 10 }]}
+            style={{ padding: 10 } as ViewStyle}
             label={t("choose_table")}
             placeholder={t("no_table_found")}
             value={
@@ -570,10 +616,14 @@ const ReviewOrderScreen = ({ route, navigation }) => {
                 ? selectedTableIndex.row > 0
                   ? tables[selectedTableIndex.row - 1].name
                   : t("choose_table")
-                : null
+                : t("no_table_found") // thay null bằng giá trị string
             }
             selectedIndex={selectedTableIndex}
-            onSelect={(index: IndexPath) => setSelectedTableIndex(index)}
+            onSelect={(index: IndexPath | IndexPath[]) => {
+              if (index instanceof IndexPath) {
+                setSelectedTableIndex(index);
+              }
+            }}
           >
             {tables.length > 0 ? (
               [{ name: t("choose_table"), $id: "0" }]
@@ -587,7 +637,7 @@ const ReviewOrderScreen = ({ route, navigation }) => {
           </Select>
           <Input
             label={t("order_note")}
-            style={[styles.input, { padding: 10 }]}
+            style={[styles.input as TextStyle, { padding: 10 }]}
             value={order.note}
             placeholder={t("order_note")}
             onChangeText={(nextValue) =>
@@ -596,7 +646,7 @@ const ReviewOrderScreen = ({ route, navigation }) => {
           />
 
           <Datepicker
-            style={[styles.input, { padding: 10 }]}
+            style={[styles.input as ViewStyle, { padding: 10 }]}
             label={t("order_date")}
             date={order.date}
             max={new Date()}
@@ -611,7 +661,7 @@ const ReviewOrderScreen = ({ route, navigation }) => {
           />
         </View>
       </ScrollView>
-      <Layout level="1" style={styles.buttons}>
+      <Layout level="1" style={styles.buttons as ViewStyle}>
         <Button
           style={{ flex: 1, marginRight: 5, borderWidth: 0 }}
           appearance="outline"

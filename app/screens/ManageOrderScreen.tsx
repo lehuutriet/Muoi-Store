@@ -1,4 +1,4 @@
-import { Dimensions, StyleSheet, View } from "react-native";
+import { Dimensions, StyleSheet, View, ViewStyle } from "react-native";
 
 import React, { useEffect, useState } from "react";
 import {
@@ -17,11 +17,34 @@ import {
   Spinner,
 } from "@ui-kitten/components";
 import { useTranslation } from "react-i18next";
-import { useStorage, useDatabases, COLLECTION_IDS } from "../hooks/AppWrite";
+import { useStorage, useDatabases, COLLECTION_IDS } from "../hook/AppWrite";
 import { OrderList, OrderScrollbar } from "../components/order";
 import { i18nCalendar as i18n } from "../i18/i18n.config";
+import { StackNavigationProp } from "@react-navigation/stack";
+import { RouteProp } from "@react-navigation/native";
 
-const ManageOrderScreen = ({ route, navigation }) => {
+// Định nghĩa kiểu cho params của các màn hình
+type RootStackParamList = {
+  ManageOrderScreen: undefined; // thêm các route khác nếu cần
+};
+
+// Định nghĩa kiểu cho props navigation và route
+type ManageOrderScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  "ManageOrderScreen"
+>;
+type ManageOrderScreenRouteProp = RouteProp<
+  RootStackParamList,
+  "ManageOrderScreen"
+>;
+
+// Định nghĩa kiểu cho props của component
+type ManageOrderScreenProps = {
+  navigation: ManageOrderScreenNavigationProp;
+  route: ManageOrderScreenRouteProp;
+};
+
+const ManageOrderScreen = ({ route, navigation }: ManageOrderScreenProps) => {
   const styles = useStyleSheet(styleSheet);
   const { t } = useTranslation();
   const [orderStatus, setOrderStatus] = useState("all");
@@ -29,7 +52,7 @@ const ManageOrderScreen = ({ route, navigation }) => {
   const [orderDate, setOrderDate] = useState(new Date());
 
   return (
-    <Layout style={styles.mainLayout}>
+    <Layout style={styles.mainLayout as ViewStyle}>
       <OrderScrollbar
         selectedFilter={orderStatus}
         setSelectedFilter={setOrderStatus}

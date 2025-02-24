@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, TouchableWithoutFeedback } from "react-native";
+
 import {
   Card,
   Text,
@@ -11,7 +12,7 @@ import {
   Spinner,
 } from "@ui-kitten/components";
 import { useTranslation } from "react-i18next";
-import { useDatabases } from "../../hook/AppWrite";
+import { useAccounts, useDatabases } from "../../hook/AppWrite";
 
 interface CreatePropsCardProps {
   collection: string;
@@ -50,22 +51,21 @@ const CreatePropsCard: React.FC<CreatePropsCardProps> = ({
   const { createItem, updateItem, deleteItem } = useDatabases();
   const [item, setItem] = useState(itemInfo);
   const [waiting, setWaiting] = useState(false);
-
+  const { getUserPrefs } = useAccounts();
   const editItem = async (
     action: "create" | "update" | "delete" | "cancel"
   ) => {
     setWaiting(true);
-    console.log("on editItem::", action, item);
     try {
+      const userPrefs = await getUserPrefs();
+      console.log("userPrefs in editItem:", userPrefs);
       switch (action) {
         case "create":
           await createItem(collection, { name: item.name });
           break;
         case "update":
           if (item.$id) {
-            await updateItem(collection, item.$id, {
-              name: item.name,
-            });
+            await updateItem(collection, item.$id, { name: item.name });
           }
           break;
         case "delete":
@@ -73,16 +73,13 @@ const CreatePropsCard: React.FC<CreatePropsCardProps> = ({
             await deleteItem(collection, item.$id);
           }
           break;
-        default:
-          break;
       }
-
-      setWaiting(false);
       action === "cancel" ? onFinished(false) : onFinished(true);
     } catch (error) {
-      console.log("editItem CreatePropsCard error::", error);
-      setWaiting(false);
+      console.error("Error in editItem:", error);
       onFinished(false);
+    } finally {
+      setWaiting(false);
     }
   };
 

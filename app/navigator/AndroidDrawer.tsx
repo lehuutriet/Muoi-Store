@@ -9,6 +9,7 @@ import {
   View,
   StyleProp,
   ViewStyle,
+  TextStyle,
   // ViewProps,
 } from "react-native";
 import {
@@ -64,6 +65,9 @@ type CollectionType = {
   orders: "orders";
   tables: "tables";
 };
+interface StackScreenProps {
+  openDrawer?: (() => void) | null | undefined;
+}
 
 const AndroidDrawer: React.FC<AndroidDrawerProps> = ({
   pushToken,
@@ -128,7 +132,7 @@ const AndroidDrawer: React.FC<AndroidDrawerProps> = ({
   }, []);
 
   const DrawerView = () => (
-    <Layout level="2" style={styles.container}>
+    <Layout level="2" style={styles.container as ViewStyle}>
       <View
         style={{
           height: 100,
@@ -136,22 +140,24 @@ const AndroidDrawer: React.FC<AndroidDrawerProps> = ({
           flexDirection: "column-reverse",
         }}
       >
-        <View style={styles.containerChild}>
+        <View style={styles.containerChild as ViewStyle}>
           <ImageBackground
-            style={styles.drawerHeaderIcon}
+            style={styles.drawerHeaderIcon as ViewStyle}
             source={require("../../assets/images/iconshop.png")}
             resizeMode="contain"
           ></ImageBackground>
-          <Text style={styles.drawerTitle}>{userInfo.STORE_NAME}</Text>
+          <Text style={styles.drawerTitle as TextStyle}>
+            {userInfo.STORE_NAME}
+          </Text>
         </View>
       </View>
 
       <Divider />
       <MenuGroups onNavigate={onNavigate} />
       <Divider style={{ height: 10 }} />
-      <Layout level="3" style={styles.logout}>
+      <Layout level="3" style={styles.logout as ViewStyle}>
         <Button
-          style={styles.logoutBtn}
+          style={styles.logoutBtn as ViewStyle}
           status="warning"
           accessoryLeft={() => (
             <Icon

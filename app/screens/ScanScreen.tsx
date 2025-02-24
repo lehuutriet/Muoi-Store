@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, TextStyle, View, ViewStyle } from "react-native";
 import { Audio } from "expo-av";
-import { Camera, BarcodeScanningResult } from "expo-camera";
+import { Camera as ExpoCamera, BarcodeScanningResult } from "expo-camera";
+
 import { Button } from "react-native-elements";
 import { DeviceMotion } from "expo-sensors";
 import { StyleService, useStyleSheet } from "@ui-kitten/components";
@@ -22,7 +23,7 @@ const ScanScreen: React.FC<ScanScreenProps> = ({
   const [cameraActive, setCameraActive] = useState(true);
   const idleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const canScan = useRef(true);
-
+  const Camera = ExpoCamera as any;
   useEffect(() => {
     DeviceMotion.setUpdateInterval(500);
     const subscription = DeviceMotion.addListener((motionData) => {
@@ -106,7 +107,7 @@ const ScanScreen: React.FC<ScanScreenProps> = ({
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container as ViewStyle}>
       {cameraActive ? (
         <Camera
           style={StyleSheet.absoluteFillObject}
@@ -116,14 +117,16 @@ const ScanScreen: React.FC<ScanScreenProps> = ({
           }}
         />
       ) : (
-        <View style={styles.cameraPlaceholder}>
-          <Text style={styles.overlayText}>Camera tự nghỉ sau 15 giây!</Text>
+        <View style={styles.cameraPlaceholder as ViewStyle}>
+          <Text style={styles.overlayText as TextStyle}>
+            Camera tự nghỉ sau 15 giây!
+          </Text>
           <Button title="Mở máy quét" onPress={activateScanner} />
         </View>
       )}
       {scannedCode && (
-        <View style={styles.overlay}>
-          <Text style={styles.overlayText}>{scannedCode}</Text>
+        <View style={styles.overlay as ViewStyle}>
+          <Text style={styles.overlayText as TextStyle}>{scannedCode}</Text>
         </View>
       )}
     </View>

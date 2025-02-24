@@ -1,13 +1,41 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { StyleSheet, View, Dimensions, ListRenderItemInfo } from "react-native";
+import {
+  StyleSheet,
+  View,
+  Dimensions,
+  ListRenderItemInfo,
+  ViewStyle,
+} from "react-native";
 // import { Button } from "react-native-elements";
+import { StackNavigationProp } from "@react-navigation/stack";
 import { Layout, Button, List, ListItem } from "@ui-kitten/components";
 import { FloatingAction } from "react-native-floating-action";
 import { StyleService, useStyleSheet } from "@ui-kitten/components";
 import { CategoryList } from "../components/category";
+type RootStackParamList = {
+  CreateOrderScreen: {
+    title: string;
+    method: string;
+  };
+  CreateProductScreen: {
+    title: string;
+    method: string;
+  };
+  ManageOrderScreen: undefined;
+  ManageProductScreen: undefined;
+  ManageTableScreen: undefined;
+};
 
-const HomeScreen = ({ navigation }) => {
+// Định nghĩa kiểu cho navigation prop
+type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList>;
+
+// Định nghĩa kiểu cho component props
+type HomeScreenProps = {
+  navigation: HomeScreenNavigationProp;
+};
+
+const HomeScreen = ({ navigation }: HomeScreenProps) => {
   const styles = useStyleSheet(styleSheet);
   const { t } = useTranslation();
   const allCategoryAtom = [
@@ -58,21 +86,24 @@ const HomeScreen = ({ navigation }) => {
 
   return (
     <Layout style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-      <View style={styles.container}>
+      <View style={styles.container as ViewStyle}>
         <CategoryList data={allCategoryAtom} />
         <FloatingAction
           actions={actions}
-          onPressItem={(screenName) => {
+          onPressItem={(screenName: string | undefined) => {
             console.log(`selected button:: ${screenName}`);
-            navigation.navigate(screenName, {
-              title:
-                screenName === "CreateOrderScreen"
-                  ? t("create_order")
-                  : screenName === "CreateProductScreen"
-                  ? t("create_product")
-                  : "",
-              method: "create",
-            });
+            if (
+              screenName === "CreateOrderScreen" ||
+              screenName === "CreateProductScreen"
+            ) {
+              navigation.navigate(screenName, {
+                title:
+                  screenName === "CreateOrderScreen"
+                    ? t("create_order")
+                    : t("create_product"),
+                method: "create",
+              });
+            }
           }}
         />
       </View>

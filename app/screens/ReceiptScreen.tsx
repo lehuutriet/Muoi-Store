@@ -23,9 +23,49 @@ import { default as EscPosEncoder } from "@waymen/esc-pos-encoder";
 import ViewShot, { captureRef } from "react-native-view-shot";
 import { userAtom } from "../states";
 import { Buffer } from "buffer";
+import { ViewStyle, ImageStyle, TextStyle } from "react-native";
+import { RouteProp } from "@react-navigation/native";
+import { StackNavigationProp } from "@react-navigation/stack";
 // import ReactNativeBlobUtil from "react-native-blob-util";
+type RootStackParamList = {
+  TabNavigator: undefined;
+  CreateOrderScreen: { method: string };
+  ReviewOrderScreen: { orderInfo?: any };
+  ReceiptScreen: { receiptData: any };
+};
 
-const ReceiptScreen = ({ route, navigation }) => {
+type ReceiptScreenProps = {
+  route: RouteProp<RootStackParamList, "ReceiptScreen">;
+  navigation: StackNavigationProp<RootStackParamList>;
+};
+interface ReceiptStyles {
+  container: ViewStyle;
+  productCard: ViewStyle;
+  cardInfo: ViewStyle;
+  cardImg: ImageStyle;
+  headerRight: ViewStyle;
+  menuIcon: ViewStyle;
+  input: ViewStyle;
+  countBtn: ViewStyle;
+  countIcon: ImageStyle;
+  buttons: ViewStyle;
+  icon: ImageStyle;
+}
+interface ReceiptData {
+  $id: string;
+  status: string;
+  date: string;
+  table?: string;
+  order: Array<{
+    $id: string;
+    name: string;
+    price: number;
+    count: number;
+  }>;
+  subtract: number;
+  discount: number;
+}
+const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
   const viewShotRef = useRef(null);
   const styles = useStyleSheet(styleSheet);
   const theme = useTheme();
@@ -33,7 +73,7 @@ const ReceiptScreen = ({ route, navigation }) => {
   const { printContent } = useBLE();
   const [mediaPermissionResponse, requestMediaPermission] =
     MediaLibrary.usePermissions();
-  const [data, setReceiptData] = useState(null);
+  const [data, setReceiptData] = useState<ReceiptData | null>(null);
   const [totalPrice, setTotalPrice] = useState(0);
   const [finalPrice, setFinalPrice] = useState(0);
   const [userInfo, setUserInfo] = useRecoilState(userAtom);
@@ -44,10 +84,10 @@ const ReceiptScreen = ({ route, navigation }) => {
     navigation.setOptions({
       title: t("receipt_detail"),
       headerRight: () => (
-        <View style={styles.headerRight}>
+        <View style={styles.headerRight as ViewStyle}>
           <Button
             size="small"
-            style={styles.menuIcon}
+            style={styles.menuIcon as ViewStyle}
             accessoryLeft={(props) => (
               <Icon
                 {...props}
@@ -59,7 +99,7 @@ const ReceiptScreen = ({ route, navigation }) => {
             onPress={() => saveReceipt()}
           />
           <Button
-            style={[styles.menuIcon]}
+            style={[styles.menuIcon as ViewStyle]}
             size="small"
             accessoryLeft={(props) => (
               <Icon {...props} fill={theme["color-primary-900"]} name="share" />
@@ -83,12 +123,15 @@ const ReceiptScreen = ({ route, navigation }) => {
         receiptData.discount =
           receiptData.discount >= 0 ? receiptData.discount : 0;
         setReceiptData(receiptData);
-        let sum = receiptData.order.reduce((acc, item) => {
-          if (item.price && item.count) {
-            return acc + item.price * item.count;
-          }
-          return acc;
-        }, 0);
+        let sum = receiptData.order.reduce(
+          (acc: number, item: { price: number; count: number }) => {
+            if (item.price && item.count) {
+              return acc + item.price * item.count;
+            }
+            return acc;
+          },
+          0
+        );
         console.log("setTotalPrice::", sum);
         setTotalPrice(sum);
         // minus subtract
@@ -104,7 +147,7 @@ const ReceiptScreen = ({ route, navigation }) => {
     initData();
   }, []);
 
-  const showAlert = (tilte, message) =>
+  const showAlert = (tilte: string, message: string) =>
     Alert.alert(
       tilte,
       message,
@@ -160,6 +203,7 @@ const ReceiptScreen = ({ route, navigation }) => {
   };
 
   const printReceipt = async () => {
+    if (!data) return;
     try {
       let encoder = new EscPosEncoder();
       const printStatus = await printContent(
@@ -308,7 +352,7 @@ const ReceiptScreen = ({ route, navigation }) => {
   };
 
   return (
-    <Layout level="1" style={styles.container}>
+    <Layout level="1" style={styles.container as ViewStyle}>
       <ScrollView>
         {data ? (
           <ViewShot
@@ -579,7 +623,7 @@ const ReceiptScreen = ({ route, navigation }) => {
           <></>
         )}
       </ScrollView>
-      <Layout level="1" style={styles.buttons}>
+      <Layout level="1" style={styles.buttons as ViewStyle}>
         {/* <Icon
           style={{ width: 20, height: 20 }}
           fill="white"
@@ -619,7 +663,7 @@ const ReceiptScreen = ({ route, navigation }) => {
   );
 };
 
-const styleSheet = StyleService.create({
+const styleSheet = StyleService.create<ReceiptStyles>({
   container: {
     flex: 1,
     paddingBottom: 100,

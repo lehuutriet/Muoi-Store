@@ -10,13 +10,14 @@ import {
   useStyleSheet,
 } from "@ui-kitten/components";
 import * as RootNavigation from "../navigator/RootNavigation";
+import { ViewStyle } from "react-native";
 // import { Alert, Modal, Pressable, View } from "react-native";
 
 const SettingScreen = () => {
   const styles = useStyleSheet(styleSheet);
   const { t } = useTranslation();
   return (
-    <Layout style={styles.settingLayout}>
+    <Layout style={styles.settingLayout as ViewStyle}>
       {/* <Layout style={styles.settingContent}>
         <Button
           style={styles.settingIcon}
@@ -33,9 +34,9 @@ const SettingScreen = () => {
           {theme.theme === "light" ? `${t("dark_mode")}` : `${t("light_mode")}`}
         </Text>
       </Layout> */}
-      <Layout style={styles.settingContent}>
+      <Layout style={styles.settingContent as ViewStyle}>
         <Button
-          style={styles.settingIcon}
+          style={styles.settingIcon as ViewStyle}
           appearance="outline"
           accessoryLeft={(props): IconElement => (
             <Icon {...props} name={"printer"} />
@@ -45,9 +46,9 @@ const SettingScreen = () => {
           <Text>{`${t("connect_ble_printer")}`}</Text>
         </Button>
       </Layout>
-      <Layout style={styles.settingContent}>
+      <Layout style={styles.settingContent as ViewStyle}>
         <Button
-          style={styles.settingIcon}
+          style={styles.settingIcon as ViewStyle}
           appearance="outline"
           accessoryLeft={(props): IconElement => (
             <Icon {...props} name={"shield"} />

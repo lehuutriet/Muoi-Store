@@ -31,13 +31,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const client = new Client();
 client
-  .setEndpoint("https://store.hjm.bid/v1")
-  .setProject("67b3e08f00152bbd6ed4")
-  .setPlatform("com.muoistore.app");
+  .setEndpoint("https://cloud.appwrite.io/v1")
+  .setProject("66a085e60016a161b67b")
+  .setPlatform("com.test.app");
 
 // Setting appwrite connection info here
-let APPWRITE_ENDPOINT = "https://store.hjm.bid/v1";
-let PROJECT_ID = "67b3e08f00152bbd6ed4";
+let APPWRITE_ENDPOINT = "https://cloud.appwrite.io/v1";
+let PROJECT_ID = "66a085e60016a161b67b";
 const DEFAULT_USER_PREFS = {
   DATABASE_ID: "muoi-store",
   BUCKET_ID: "muoi-store-storage",
@@ -115,11 +115,13 @@ export function useAccounts() {
   const getUserPrefs = async () => {
     const storedUserPrefs = await AsyncStorage.getItem("userPrefs");
     if (storedUserPrefs) {
-      return JSON.parse(storedUserPrefs);
+      const parsedPrefs = JSON.parse(storedUserPrefs);
+      // Lấy phần tử đầu tiên từ mảng
+      return Array.isArray(parsedPrefs) ? parsedPrefs[0] : parsedPrefs;
     } else {
       const prefs = await account.getPrefs();
       const userPrefs = prefs && prefs.DATABASE_ID ? prefs : DEFAULT_USER_PREFS;
-      await AsyncStorage.setItem("userPrefs", JSON.stringify([userPrefs])); // Bọc trong mảng
+      await AsyncStorage.setItem("userPrefs", JSON.stringify(userPrefs));
       return userPrefs;
     }
   };
@@ -333,18 +335,19 @@ export function useDatabases() {
         }
       );
   }
-  async function createItem(collectionId: any, data: any) {
+  async function createItem(collectionId: string, data: any) {
     const userPrefs = await getUserPrefs();
-    const item = await databases.createDocument(
+    if (!userPrefs.DATABASE_ID) {
+      throw new Error("Database ID not found in user preferences");
+    }
+
+    return databases.createDocument(
       userPrefs.DATABASE_ID,
       collectionId,
       ID.unique(),
       data
     );
-    console.log(`create ${collectionId} called::`, item, data);
-    return item;
   }
-
   async function updateItem(collectionId: any, itemID: any, data: any) {
     const userPrefs = await getUserPrefs();
     const item = await databases.updateDocument(

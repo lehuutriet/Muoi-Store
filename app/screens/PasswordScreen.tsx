@@ -24,13 +24,40 @@ import {
   Easing,
   ImageBackground,
   BackHandler,
+  ViewStyle,
+  TextStyle,
+  ImageStyle,
 } from "react-native";
 import { useAccounts } from "../hook/AppWrite";
 import { WaitingModal } from "../components/common";
 
-const showAlert = (tilte, message) =>
+interface PasswordScreenProps {
+  onLoggedIn: () => void;
+}
+
+interface StyleType {
+  backgroundImg: ViewStyle;
+  loginLayout: ViewStyle;
+  loginHolder: ViewStyle;
+  captionContainer: ViewStyle;
+  captionIcon: ImageStyle;
+  captionText: TextStyle;
+  submitButton: ViewStyle;
+}
+
+interface Session {
+  $id: string;
+  userId: string;
+}
+
+interface RenderIconProps {
+  style: ImageStyle;
+  fill?: string;
+  name: string;
+}
+const showAlert = (title: string, message: string): void => {
   Alert.alert(
-    tilte,
+    title,
     message,
     [
       {
@@ -42,28 +69,27 @@ const showAlert = (tilte, message) =>
       cancelable: true,
     }
   );
+};
 
-const PasswordScreen = ({ onLoggedIn }) => {
-  // Import basic
+const PasswordScreen: React.FC<PasswordScreenProps> = ({ onLoggedIn }) => {
   const styles = useStyleSheet(styleSheet);
   const { getSession, login, updatePassword } = useAccounts();
   const { t } = useTranslation();
-  const [waiting, setWaiting] = useState(false);
+  const [waiting, setWaiting] = useState<boolean>(false);
   const [userInfo, setUserInfo] = useRecoilState(userAtom);
 
-  // Define state variable
-  const [alert, setAlert] = React.useState("");
-  const [currentSession, setCurrentSession] = React.useState(null);
+  const [alert, setAlert] = useState<string>("");
+  const [currentSession, setCurrentSession] = useState<Session | null>(null);
 
-  const [oldPassword, setOldPassword] = React.useState("");
-  const [newPassword, setNewPassword] = React.useState("");
-  const [secureTextEntry, setSecureTextEntry] = React.useState(true);
+  const [oldPassword, setOldPassword] = useState<string>("");
+  const [newPassword, setNewPassword] = useState<string>("");
+  const [secureTextEntry, setSecureTextEntry] = useState<boolean>(true);
 
   const toggleSecureEntry = (): void => {
     setSecureTextEntry(!secureTextEntry);
   };
 
-  const renderIcon = (props): React.ReactElement => (
+  const renderIcon = (props: RenderIconProps) => (
     <TouchableWithoutFeedback onPress={toggleSecureEntry}>
       <Icon {...props} name={secureTextEntry ? "eye-off" : "eye"} />
     </TouchableWithoutFeedback>
@@ -71,80 +97,80 @@ const PasswordScreen = ({ onLoggedIn }) => {
 
   const renderCaption = (): React.ReactElement => {
     return (
-      <View style={styles.captionContainer}>
+      <View style={styles.captionContainer as ViewStyle}>
         <Icon
           style={styles.captionIcon}
           fill="blue"
           name="alert-circle-outline"
         />
-        <Text style={styles.captionText}>{t("password_requirement")}</Text>
+        <Text style={styles.captionText as TextStyle}>
+          {t("password_requirement")}
+        </Text>
       </View>
     );
   };
 
-  const onSubmit = async () => {
-    // if (newPassword !== confirmPassword) {
-    // 	showAlert(t("inform"), t("password_not_match"));
-    // } else {
+  const onSubmit = async (): Promise<void> => {
     if (!oldPassword || !newPassword) {
       showAlert(t("inform"), t("enter_password"));
-    } else {
-      setWaiting(true);
-      console.log("loginSubmit called::", oldPassword, newPassword);
+      return;
+    }
 
+    setWaiting(true);
+
+    try {
       const result = await updatePassword(oldPassword, newPassword);
-      console.log("changePassword result::", result);
 
-      if (result.status) {
-        showAlert(t("inform"), t("update_password_success"));
+      // Kiểm tra xem result có phải là UpdatePasswordResponse không
+      if ("message" in result) {
+        if (result.status) {
+          showAlert(t("inform"), t("update_password_success"));
+        } else {
+          const message = result.message.startsWith("Invalid password")
+            ? t("invalid_password")
+            : t("invalid_credentials");
+          showAlert(t("update_password_failure"), message);
+        }
       } else {
-        const message = result.message.startsWith("Invalid password")
-          ? t("invalid_password")
-          : t("invalid_credentials");
-        showAlert(t("update_password_failure"), message);
+        showAlert(t("inform"), t("update_password_success"));
       }
-
+    } catch (error) {
+      showAlert(t("error"), t("update_password_error"));
+    } finally {
       setOldPassword("");
       setNewPassword("");
       setWaiting(false);
     }
-    // }
   };
 
   return (
     <SafeAreaView>
-      <Layout style={styles.loginLayout}>
-        <View style={styles.loginHolder}>
+      <Layout style={styles.loginLayout as ViewStyle}>
+        <View style={styles.loginHolder as ViewStyle}>
           <Input
             value={oldPassword}
             label={t("old_password")}
             placeholder={t("old_password_placeholder")}
             caption={renderCaption}
-            accessoryRight={renderIcon}
+            accessoryRight={(props) => renderIcon(props as RenderIconProps)}
             secureTextEntry={secureTextEntry}
-            onChangeText={(nextValue) => setOldPassword(nextValue)}
+            onChangeText={(nextValue: string) => setOldPassword(nextValue)}
           />
           <Input
             value={newPassword}
             label={t("new_password")}
             placeholder={t("new_password_placeholder")}
             caption={renderCaption}
-            accessoryRight={renderIcon}
+            accessoryRight={(props) => renderIcon(props as RenderIconProps)}
             secureTextEntry={secureTextEntry}
-            onChangeText={(nextValue) => setNewPassword(nextValue)}
+            onChangeText={(nextValue: string) => setNewPassword(nextValue)}
           />
           <Button
-            style={styles.submitButton}
+            style={styles.submitButton as ViewStyle}
             appearance="outline"
-            // accessoryLeft={(props): IconElement => (
-            //   <Icon
-            //     {...props}
-            //     name={theme.theme === "light" ? "moon" : "moon-outline"}
-            //   />
-            // )}
-            onPress={() => onSubmit()}
+            onPress={onSubmit}
           >
-            {`${t("change")}`}
+            {t("change")}
           </Button>
           <Text style={{ textAlign: "center" }}>{alert}</Text>
         </View>
@@ -154,7 +180,7 @@ const PasswordScreen = ({ onLoggedIn }) => {
   );
 };
 
-const styleSheet = StyleService.create({
+const styleSheet = StyleService.create<StyleType>({
   backgroundImg: {
     position: "absolute",
     width: 1200,
@@ -174,7 +200,6 @@ const styleSheet = StyleService.create({
     height: Dimensions.get("window").height,
     padding: 20,
     alignItems: "center",
-    // justifyContent: "center",
   },
   loginHolder: {
     width: "100%",

@@ -29,17 +29,45 @@ import { CreatePropsCard } from "../components/common";
 import { useRecoilState, useRecoilValue, useRecoilCallback } from "recoil";
 import { allTablesAtom, tableAtomFamily, tableIdsAtom } from "../states";
 import { useDatabases, COLLECTION_IDS } from "../hook/AppWrite";
+import { ViewStyle, TextStyle } from "react-native";
 
-const DEFAULT_CARD_PROPS = {
+interface CardProps {
+  visible: boolean;
+  method: "create" | "update" | "delete" | "cancel";
+  itemInfo: {
+    $id?: string;
+    name: string;
+  };
+}
+
+interface FunctionCardProps {
+  cardProps: CardProps;
+  setCardPropsCallback: (props: CardProps) => void;
+}
+
+interface TableCardProps {
+  tableId: string;
+  setCardPropsCallback: (props: CardProps) => void;
+}
+
+interface Table {
+  $id: string;
+  name: string;
+}
+const DEFAULT_CARD_PROPS: CardProps = {
   visible: false,
-  method: "create",
+  method: "create", // Thay vì "create" string thường
   itemInfo: {
     $id: "",
     name: "",
   },
 };
+interface TableCardProps {
+  tableId: string;
+  setCardPropsCallback: (props: CardProps) => void;
+}
 
-const FunctionCard = ({
+const FunctionCard: React.FC<FunctionCardProps> = ({
   cardProps,
   setCardPropsCallback,
 }): React.ReactElement => {
@@ -60,9 +88,9 @@ const FunctionCard = ({
     ({ set }) =>
       async () => {
         setCardPropsCallback(DEFAULT_CARD_PROPS);
-        const tableData = await getAllItem(COLLECTION_IDS.tables);
+        const tableData: Table[] = await getAllItem(COLLECTION_IDS.tables);
         set(allTablesAtom, tableData);
-        const ids = [];
+        const ids: string[] = [];
         for (const table of tableData) {
           ids.push(table.$id);
           set(tableAtomFamily(table.$id), table);
@@ -71,7 +99,6 @@ const FunctionCard = ({
       },
     []
   );
-
   return cardProps.visible ? (
     <CreatePropsCard
       collection={COLLECTION_IDS.tables}
@@ -98,16 +125,23 @@ const FunctionCard = ({
   );
 };
 
-const TableCard = ({ tableId, setCardPropsCallback }): React.ReactElement => {
-  const [table, setTable] = useRecoilState(tableAtomFamily(tableId));
+const TableCard = ({
+  tableId,
+  setCardPropsCallback,
+}: TableCardProps): React.ReactElement => {
+  const [table] = useRecoilState(tableAtomFamily(tableId));
+
   const styles = useStyleSheet(styleSheet);
   const theme = useTheme();
   const { t } = useTranslation();
-  const renderItemFooter = (footerProps, item): React.ReactElement => {
+  const renderItemFooter = (
+    footerProps: any,
+    item: Table
+  ): React.ReactElement => {
     const styles = useStyleSheet(styleSheet);
     return (
       <View {...footerProps} style={[footerProps.style]}>
-        <Text category="s2" style={styles.footerText}>
+        <Text category="s2" style={styles.footerText as TextStyle}>
           {item.name}
         </Text>
       </View>
@@ -115,12 +149,16 @@ const TableCard = ({ tableId, setCardPropsCallback }): React.ReactElement => {
   };
   return (
     <Card
-      style={styles.item}
+      style={styles.item as ViewStyle}
       status="info"
       // header={(headerProps) => renderItemHeader(headerProps, info)}
       footer={(footerProps) => renderItemFooter(footerProps, table)}
       onPress={() =>
-        setCardPropsCallback({ method: "edit", visible: true, itemInfo: table })
+        setCardPropsCallback({
+          method: "update",
+          visible: true,
+          itemInfo: table,
+        })
       }
     >
       <Icon
@@ -137,7 +175,7 @@ const MemoizedTableCard = memo(
   (prev, next) => prev.tableId === next.tableId
 );
 
-const ManageTableScreen = ({ navigation }) => {
+const ManageTableScreen = ({}) => {
   const styles = useStyleSheet(styleSheet);
   const theme = useTheme();
   const { t } = useTranslation();
@@ -146,21 +184,20 @@ const ManageTableScreen = ({ navigation }) => {
   // const [tables, setTables] = useRecoilState(allTablesAtom);
   const tableIds = useRecoilValue(tableIdsAtom);
 
-  const setCardPropsCallback = useCallback((props) => {
+  const setCardPropsCallback = useCallback((props: CardProps) => {
     setCardProps((prev) => ({
       method: props.method,
       visible: props.visible,
       itemInfo: props.itemInfo,
     }));
   }, []);
-
   return (
     <Layout
       style={{
         flex: 1,
       }}
     >
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={styles.container as ViewStyle}>
         {tableIds.map((id) => (
           <MemoizedTableCard
             key={id}

@@ -1,22 +1,32 @@
-import { StyleSheet, View } from "react-native";
-
+import { View, ViewStyle } from "react-native";
 import CheckoutScreen from "./CheckoutScreen";
 import ScanScreen from "./ScanScreen";
-import React from "react";
-import { useState } from "react";
+import React, { useState } from "react";
 import { Button, StyleService, useStyleSheet } from "@ui-kitten/components";
 
-const StaffCheckoutScreen = ({ navigation }) => {
+interface Product {
+  name: string;
+  price: number;
+  icon: string;
+  quantity: number;
+}
+
+interface ProductList {
+  [key: string]: Product;
+}
+
+const StaffCheckoutScreen = ({ navigation }: { navigation: any }) => {
   const styles = useStyleSheet(styleSheet);
-  const [items, setItems] = useState([]);
-  const sampleProducts = {
-    8935001810087: {
+  const [items, setItems] = useState<Product[]>([]);
+
+  const sampleProducts: ProductList = {
+    "8935001810087": {
       name: "Bút Lông Bảng (Xanh)",
       price: 15700,
       icon: "shopping-basket",
       quantity: 1,
     },
-    8936009640140: {
+    "8936009640140": {
       name: "Tăm Bông",
       price: 20000,
       icon: "shopping-basket",
@@ -42,13 +52,7 @@ const StaffCheckoutScreen = ({ navigation }) => {
     },
   };
 
-  // const sampleProducts = {
-  //   "001": { name: "Product 1", price: 10.99 },
-  //   "002": { name: "Product 2", price: 19.99 },
-  //   "003": { name: "Product 3", price: 29.99 },
-  // };
-
-  const handleBarcodeScanned = (barcode) => {
+  const handleBarcodeScanned = (barcode: string) => {
     console.log(`Barcode is: ${barcode}`);
     if (barcode && sampleProducts[barcode]) {
       setItems((prevItems) => [...prevItems, sampleProducts[barcode]]);
@@ -56,11 +60,11 @@ const StaffCheckoutScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.scanContainer}>
+    <View style={styles.container as ViewStyle}>
+      <View style={styles.scanContainer as ViewStyle}>
         <ScanScreen onBarcodeScanned={handleBarcodeScanned} />
       </View>
-      <View style={styles.checkoutContainer}>
+      <View style={styles.checkoutContainer as ViewStyle}>
         <CheckoutScreen checkoutItems={items} />
       </View>
       <Button onPress={() => navigation.navigate("Print")}>Print</Button>

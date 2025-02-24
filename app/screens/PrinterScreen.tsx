@@ -11,10 +11,31 @@ import {
   Text,
 } from "@ui-kitten/components";
 import { useTranslation } from "react-i18next";
-import { View } from "react-native";
+import { ImageStyle, View, ViewStyle } from "react-native";
 import { useBLE } from "../hook/BLEContext";
 
-const PrinterScreen = ({ route, navigation }) => {
+interface PrinterScreenProps {
+  route: string;
+  navigation: string;
+}
+
+interface Device {
+  id: string;
+  name: string | null;
+  txPowerLevel: number | null | undefined; // thêm kiểu null và undefined
+}
+
+interface ListRenderItemInfo {
+  item: Device;
+  index: number;
+}
+
+interface CardStyleProps {
+  style?: ViewStyle;
+}
+
+// Sửa lại component chính
+const PrinterScreen: React.FC<PrinterScreenProps> = ({ route, navigation }) => {
   const {
     manager,
     device,
@@ -36,21 +57,26 @@ const PrinterScreen = ({ route, navigation }) => {
     startScanning();
   }, []);
 
-  const connectDevice = async (device) => {
+  const connectDevice = async (device: any) => {
     setConnectingDevice(device);
     await selectDevice(device.id);
     setConnectingDevice({ id: "" });
   };
 
-  const renderItem = (info, isSelectedDevice): React.ReactElement => (
-    <Card style={styles.card}>
+  const renderItem = (
+    info: ListRenderItemInfo,
+    isSelectedDevice: boolean
+  ): React.ReactElement => (
+    <Card style={styles.card as ViewStyle}>
       <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          width: "100%",
-        }}
+        style={
+          {
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            width: "100%",
+          } as ViewStyle
+        }
       >
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <Icon
@@ -86,7 +112,7 @@ const PrinterScreen = ({ route, navigation }) => {
     </Card>
   );
   return (
-    <Layout level="1" style={styles.mainLayout}>
+    <Layout level="1" style={styles.mainLayout as ViewStyle}>
       <View style={{ paddingTop: 16, paddingLeft: 16, paddingRight: 16 }}>
         <Text>{t("printer_decription")}</Text>
       </View>
@@ -118,7 +144,7 @@ const PrinterScreen = ({ route, navigation }) => {
           />
         )}
       </View>
-      <Layout level="1" style={styles.listLayout}>
+      <Layout level="1" style={styles.listLayout as ViewStyle}>
         {connetedDevice.length > 0 ? (
           <List
             style={{ backgroundColor: "transparent" }}
@@ -144,7 +170,7 @@ const PrinterScreen = ({ route, navigation }) => {
           {t("device")}
         </Text>
       </View>
-      <Layout level="1" style={styles.listLayout}>
+      <Layout level="1" style={styles.listLayout as ViewStyle}>
         {devices.length > 0 ? (
           <List
             style={{ backgroundColor: "transparent" }}
@@ -168,11 +194,11 @@ const PrinterScreen = ({ route, navigation }) => {
 const styleSheet = StyleService.create({
   mainLayout: {
     flex: 1,
-  },
+  } as ViewStyle,
   listLayout: {
     paddingLeft: 16,
     paddingRight: 16,
-  },
+  } as ViewStyle,
   card: {
     backgroundColor: "transparent",
     marginTop: 5,
@@ -180,12 +206,11 @@ const styleSheet = StyleService.create({
     borderRadius: 5,
     flexDirection: "row",
     alignItems: "center",
-    // justifyContent: "space-between",
-  },
+  } as ViewStyle,
   btnIcon: {
     width: 20,
     height: 20,
-  },
+  } as ImageStyle,
 });
 
 export default PrinterScreen;

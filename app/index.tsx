@@ -44,8 +44,8 @@ import LoginScreen from "./screens/LoginScreen";
 import remoteConfig from "@react-native-firebase/remote-config";
 import * as Application from "expo-application";
 import { compareVersions } from "compare-versions";
-const APPWRITE_ENDPOINT = "https://store.hjm.bid/v1";
-const PROJECT_ID = "67b3e08f00152bbd6ed4";
+const APPWRITE_ENDPOINT = "https://cloud.appwrite.io/v1";
+const PROJECT_ID = "66a085e60016a161b67b";
 SplashScreen.preventAutoHideAsync().catch(() => {
   /* reloading the app might trigger some race conditions, ignore them */
 });
@@ -249,10 +249,10 @@ function MainScreen() {
                   theme={eva[theme]}
                 >
                   <NavigationIndependentTree>
-                    {/* <BLEProvider>  */}
+                    {/* <BLEProvider> */}
                     <NavigationContainer ref={RootNavigation.navigationRef}>
                       <Stack.Navigator screenOptions={{ headerShown: false }}>
-                        <Stack.Screen
+                        {/* <Stack.Screen
                           name="Main"
                           component={Drawer}
                           initialParams={{
@@ -260,8 +260,8 @@ function MainScreen() {
                             onLoggedOut: () => setIsLoggedIn(false),
                           }}
                           options={{ headerShown: false }}
-                        />
-                        {/* {!isLoggedIn ? (
+                        /> */}
+                        {!isLoggedIn ? (
                           <Stack.Screen
                             name="Login"
                             component={LoginScreen}
@@ -280,10 +280,10 @@ function MainScreen() {
                             }}
                             options={{ headerShown: false }}
                           />
-                        )} */}
+                        )}
                       </Stack.Navigator>
                     </NavigationContainer>
-                    {/* </BLEProvider>  */}
+                    {/* </BLEProvider> */}
                   </NavigationIndependentTree>
                 </ApplicationProvider>
               </AppwriteContext.Provider>
