@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React from "react";
 import { useTranslation } from "react-i18next";
 import {
   Button,
@@ -10,7 +10,7 @@ import {
 } from "@ui-kitten/components";
 import { useRecoilState } from "recoil";
 import { userAtom } from "../states";
-import { Platform } from "react-native";
+import { Platform, ViewStyle } from "react-native";
 
 import PrinterScreen from "../screens/PrinterScreen";
 import StaffCheckoutScreen from "../screens/StaffCheckoutScreen";
@@ -28,9 +28,36 @@ import ManageTableScreen from "../screens/ManageTableScreen";
 
 import TabNavigator from "./BottomTab";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-const Stack = createNativeStackNavigator();
 
-const StackScreen = ({ openDrawer = null }) => {
+// Định nghĩa các tham số cho navigation
+type RootStackParamList = {
+  TabNavigator: undefined;
+  CreateProductScreen: { title: string; method: string; item?: any };
+  ManageProductScreen: undefined;
+  ManageTableScreen: undefined;
+  ManageOrderScreen: undefined;
+  CreateOrderScreen: { title: string; method: string };
+  ReviewOrderScreen: { orderInfo?: any };
+  ReceiptScreen: { receiptData: any };
+  PrinterScreen: undefined;
+  PasswordScreen: undefined;
+  StaffCheckoutScreen: undefined;
+  WarehouseScreen: undefined;
+  ReportScreen: undefined;
+  ChatScreen: undefined;
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+interface StackScreenProps {
+  openDrawer?: (() => void) | null;
+  onLoggedOut?: () => void;
+}
+
+const StackScreen: React.FC<StackScreenProps> = ({
+  openDrawer,
+  onLoggedOut,
+}) => {
   const theme = useTheme();
   const styles = useStyleSheet(styleSheet);
   const { t } = useTranslation();
@@ -47,32 +74,17 @@ const StackScreen = ({ openDrawer = null }) => {
         headerBackTitle: "Back",
         animationDuration: 150,
         freezeOnBlur: true,
-        // headerShown: Platform.OS === "android" ? true : false,
       }}
     >
       <Stack.Screen
         name="TabNavigator"
-        component={TabNavigator}
         options={{
           title: userInfo.STORE_NAME,
           gestureDirection: "horizontal",
-          headerLeft: () => (
-            <Button
-              // title="Open drawer"
-              style={styles.menuIcon}
-              accessoryLeft={(props) => (
-                <Icon
-                  {...props}
-                  fill={theme["color-primary-900"]}
-                  name="menu-2"
-                />
-              )}
-              appearance="outline"
-              onPress={() => typeof openDrawer == "function" && openDrawer()}
-            />
-          ),
         }}
-      />
+      >
+        {(props) => <TabNavigator {...props} onLoggedOut={onLoggedOut} />}
+      </Stack.Screen>
 
       <Stack.Screen
         name="CreateProductScreen"
@@ -95,7 +107,6 @@ const StackScreen = ({ openDrawer = null }) => {
           title: t("manage_table"),
         }}
       />
-
       <Stack.Screen
         name="ManageOrderScreen"
         component={ManageOrderScreen}
@@ -159,6 +170,7 @@ const StackScreen = ({ openDrawer = null }) => {
           title: t("report"),
         }}
       />
+
       <Stack.Screen
         name="ChatScreen"
         component={ChatScreen}
@@ -170,11 +182,15 @@ const StackScreen = ({ openDrawer = null }) => {
   );
 };
 
-export default StackScreen;
+interface StyleProps {
+  menuIcon: ViewStyle;
+}
 
-const styleSheet = StyleService.create({
+const styleSheet = StyleService.create<StyleProps>({
   menuIcon: {
     backgroundColor: "transparent",
     borderWidth: 0,
   },
 });
+
+export default StackScreen;

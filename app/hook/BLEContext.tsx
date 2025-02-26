@@ -31,7 +31,7 @@ interface InstructionType {
 }
 
 interface BLEContextType {
-  manager: BleManager;
+  manager: BleManager | null;
   device: React.RefObject<Device | null>;
   printService: PrintService | null;
   devices: Device[];
@@ -46,8 +46,21 @@ interface BLEContextType {
 
 const BLEContext = createContext<BLEContextType | null>(null);
 
+// Khởi tạo BleManager ngoài component để tránh tạo nhiều instances
+let bleManagerInstance: BleManager | null = null;
+
+try {
+  // Chỉ khởi tạo BleManager trên thiết bị thật (Android/iOS)
+  if (Platform.OS === "android" || Platform.OS === "ios") {
+    bleManagerInstance = new BleManager();
+  }
+} catch (error) {
+  console.error("Không thể khởi tạo BleManager:", error);
+  bleManagerInstance = null;
+}
+
 export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
-  const manager = new BleManager();
+  const manager = bleManagerInstance;
   const device = useRef<Device | null>(null);
   const { t } = useTranslation();
   const [bluetoothEnabled, setBluetoothEnabled] = useState(false);
@@ -79,6 +92,11 @@ export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   useEffect(() => {
+    if (!manager) {
+      console.log("BleManager không khả dụng");
+      return;
+    }
+
     requestPermissions((granted: boolean) => {
       if (granted) {
         const subscription = manager.onStateChange((state) => {
@@ -99,6 +117,8 @@ export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   useEffect(() => {
+    if (!manager || !bluetoothEnabled) return;
+
     (async () => {
       if (!device.current) {
         await getLastDevice();
@@ -151,6 +171,8 @@ export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const getLastDevice = async () => {
+    if (!manager) return;
+
     const storedDeviceId = await AsyncStorage.getItem(
       "selectedPrinterDeviceId"
     );
@@ -166,46 +188,72 @@ export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
           service_uuid: storedServiceUUID,
           characteristic_uuid: storedCharacteristicUUID,
         });
-        const isConnected = await manager.isDeviceConnected(storedDeviceId);
-        if (!isConnected) {
-          await connectToDevice(storedDeviceId);
+        try {
+          const isConnected = await manager.isDeviceConnected(storedDeviceId);
+          if (!isConnected) {
+            await connectToDevice(storedDeviceId);
+          }
+        } catch (error) {
+          console.error("Lỗi khi kiểm tra kết nối thiết bị:", error);
         }
       }
     }
   };
 
   const startScanning = () => {
+    if (!manager) {
+      console.error("BleManager không khả dụng");
+      return;
+    }
+
     setIsScanning(true);
     setDevices([]);
-    manager.startDeviceScan(
-      null,
-      null,
-      (error: Error | null, scannedDevice: Device | null) => {
-        if (error) {
-          console.error("Device scanning error:", error);
-          return;
+
+    try {
+      manager.startDeviceScan(
+        null,
+        null,
+        (error: Error | null, scannedDevice: Device | null) => {
+          if (error) {
+            console.error("Device scanning error:", error);
+            setIsScanning(false);
+            return;
+          }
+          if (scannedDevice && scannedDevice.name) {
+            setDevices((prevDevices) => {
+              if (
+                !prevDevices.find((device) => device.id === scannedDevice.id)
+              ) {
+                return [...prevDevices, scannedDevice];
+              }
+              return prevDevices;
+            });
+          }
         }
-        if (scannedDevice && scannedDevice.name) {
-          setDevices((prevDevices) => {
-            if (!prevDevices.find((device) => device.id === scannedDevice.id)) {
-              return [...prevDevices, scannedDevice];
-            }
-            return prevDevices;
-          });
-        }
-      }
-    );
-    setTimeout(() => {
-      stopScanning();
+      );
+
+      setTimeout(() => {
+        stopScanning();
+        setIsScanning(false);
+      }, 7000);
+    } catch (error) {
+      console.error("Lỗi khi bắt đầu quét thiết bị:", error);
       setIsScanning(false);
-    }, 7000);
+    }
   };
 
   const stopScanning = () => {
-    manager.stopDeviceScan();
+    if (!manager) return;
+
+    try {
+      manager.stopDeviceScan();
+    } catch (error) {
+      console.error("Lỗi khi dừng quét thiết bị:", error);
+    }
   };
 
   const selectDevice = async (deviceId: string): Promise<boolean> => {
+    if (!manager) return false;
     return await connectToDevice(deviceId);
   };
 
@@ -213,39 +261,48 @@ export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
     device: Device,
     prefixText?: string
   ): Promise<InstructionType | null> => {
-    const receiptText = prefixText || "\n\nKet noi may in thanh cong!\n\n";
-    const printData = new Uint8Array(receiptText.length);
-    for (let i = 0; i < receiptText.length; i++) {
-      printData[i] = receiptText.charCodeAt(i);
-    }
-    const base64PrintData = Buffer.from(printData).toString("base64");
+    if (!manager) return null;
 
-    await device.discoverAllServicesAndCharacteristics();
-    const services = await device.services();
+    try {
+      const receiptText = prefixText || "\n\nKet noi may in thanh cong!\n\n";
+      const printData = new Uint8Array(receiptText.length);
+      for (let i = 0; i < receiptText.length; i++) {
+        printData[i] = receiptText.charCodeAt(i);
+      }
+      const base64PrintData = Buffer.from(printData).toString("base64");
 
-    for (const service of services) {
-      const characteristics = await service.characteristics();
-      for (const characteristic of characteristics) {
-        const SERVICE_UUID = service.uuid;
-        const CHARACTERISTIC_UUID = characteristic.uuid;
-        try {
-          await device.writeCharacteristicWithResponseForService(
-            SERVICE_UUID,
-            CHARACTERISTIC_UUID,
-            base64PrintData
-          );
-          return { SERVICE_UUID, CHARACTERISTIC_UUID };
-        } catch (error) {
-          console.warn(
-            `Failed to write to characteristic: ${CHARACTERISTIC_UUID} of ${SERVICE_UUID}`
-          );
+      await device.discoverAllServicesAndCharacteristics();
+      const services = await device.services();
+
+      for (const service of services) {
+        const characteristics = await service.characteristics();
+        for (const characteristic of characteristics) {
+          const SERVICE_UUID = service.uuid;
+          const CHARACTERISTIC_UUID = characteristic.uuid;
+          try {
+            await device.writeCharacteristicWithResponseForService(
+              SERVICE_UUID,
+              CHARACTERISTIC_UUID,
+              base64PrintData
+            );
+            return { SERVICE_UUID, CHARACTERISTIC_UUID };
+          } catch (error) {
+            console.warn(
+              `Failed to write to characteristic: ${CHARACTERISTIC_UUID} of ${SERVICE_UUID}`
+            );
+          }
         }
       }
+      return null;
+    } catch (error) {
+      console.error("Lỗi khi tìm đặc tính hoạt động:", error);
+      return null;
     }
-    return null;
   };
 
   const connectToDevice = async (deviceId: string): Promise<boolean> => {
+    if (!manager) return false;
+
     return new Promise<boolean>(async (resolve) => {
       if (deviceId !== device.current?.id) {
         try {
@@ -285,6 +342,8 @@ export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const printContent = async (base64Content = ""): Promise<boolean> => {
+    if (!manager) return false;
+
     return new Promise<boolean>(async (resolve) => {
       const deviceId = await AsyncStorage.getItem("selectedPrinterDeviceId");
       if (deviceId && device.current && printService) {
@@ -312,6 +371,8 @@ export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const disconnectFromDevice = async (deviceId: string): Promise<void> => {
+    if (!manager) return;
+
     try {
       await AsyncStorage.removeItem("selectedPrinterDeviceId");
       await AsyncStorage.removeItem("selectedPrinterServiceUUID");
@@ -325,12 +386,23 @@ export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const reloadBluetooth = async (): Promise<void> => {
+    if (!manager) return;
+
     try {
       await manager.disable();
       await manager.enable();
     } catch (error) {
       console.error("Failed to reload bluetooth:", error);
     }
+  };
+
+  // Cung cấp mock implementations nếu manager không khả dụng
+  const mockFunctions = {
+    startScanning: () => console.log("Mock scanning started"),
+    stopScanning: () => console.log("Mock scanning stopped"),
+    selectDevice: async () => false,
+    disconnectFromDevice: async () => {},
+    printContent: async () => false,
   };
 
   return (
@@ -340,13 +412,15 @@ export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
         device,
         printService,
         devices,
-        startScanning,
-        stopScanning,
+        startScanning: manager ? startScanning : mockFunctions.startScanning,
+        stopScanning: manager ? stopScanning : mockFunctions.stopScanning,
         isScanning,
-        selectDevice,
+        selectDevice: manager ? selectDevice : mockFunctions.selectDevice,
         connetedDevice,
-        disconnectFromDevice,
-        printContent,
+        disconnectFromDevice: manager
+          ? disconnectFromDevice
+          : mockFunctions.disconnectFromDevice,
+        printContent: manager ? printContent : mockFunctions.printContent,
       }}
     >
       {children}

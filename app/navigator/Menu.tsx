@@ -18,7 +18,9 @@ export interface MenuItemProps {
   accessoryLeft?: (props: any) => IconElement;
   accessoryRight?: (props: any) => IconElement;
 }
-
+export interface MenuGroupsProps {
+  onNavigate: (screenName: string, method: string) => void;
+}
 export interface MenuProps {
   selectedIndex?: number;
   onSelect?: (index: number) => void;

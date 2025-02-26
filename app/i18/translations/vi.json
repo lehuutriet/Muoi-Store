@@ -132,6 +132,20 @@
     "update_password_failure": "Cập nhật mật khẩu thất bại",
     "yes": "Có",
     "warehouse": "Kho hàng",
+    "language": "Ngôn ngữ",
+    "account_settings": "Cài đặt tài khoản",
+    "profile_settings": "Thông tin tài khoản ",
+    "store_settings": "Cài đặt cửa hàng",
+    "inventory_management": "Quản lý kho",
+    "app_settings": "Cài đặt ứng dụng",
+    "total_revenue": "Tổng doanh thu",
+    "today_revenue":"Doanh thu hôm nay",
+    "total_orders": "Tổng đơn hàng",
+    "paid_orders": "Đơn hàng đã thanh toán",
+    "unpaid_orders": "Đơn hàng chưa thanh toán",
+    "day":"Ngày",
+    "month":"Tháng",
+    "week":"Tuần",
     "wifi": "WIFI"
   }
   

@@ -8,75 +8,151 @@ import {
   IconElement,
   StyleService,
   useStyleSheet,
+  Avatar,
+  Divider,
 } from "@ui-kitten/components";
+import { ScrollView, TextStyle, View, ViewStyle } from "react-native";
 import * as RootNavigation from "../navigator/RootNavigation";
-import { ViewStyle } from "react-native";
-// import { Alert, Modal, Pressable, View } from "react-native";
+import { useAccounts } from "../hook/AppWrite";
+interface SettingItemProps {
+  icon: string;
+  title: string;
+  onPress: () => void;
+  status?: string;
+}
+interface SettingScreenProps {
+  onLoggedOut?: () => void;
+}
 
-const SettingScreen = () => {
+const SettingScreen: React.FC<SettingScreenProps> = ({ onLoggedOut }) => {
   const styles = useStyleSheet(styleSheet);
   const { t } = useTranslation();
+  const { logout } = useAccounts();
+
+  const SettingItem = ({
+    icon,
+    title,
+    onPress,
+    status = "basic",
+  }: SettingItemProps) => (
+    <Button
+      style={styles.settingItem as ViewStyle}
+      appearance="ghost"
+      status={status}
+      accessoryLeft={(props): IconElement => <Icon {...props} name={icon} />}
+      onPress={onPress}
+    >
+      {title}
+    </Button>
+  );
+
   return (
-    <Layout style={styles.settingLayout as ViewStyle}>
-      {/* <Layout style={styles.settingContent}>
-        <Button
-          style={styles.settingIcon}
-          appearance="outline"
-          accessoryLeft={(props): IconElement => (
-            <Icon
-              {...props}
-              name={theme.theme === "light" ? "moon" : "moon-outline"}
-            />
-          )}
-          onPress={() => theme.toggleTheme()}
-        ></Button>
-        <Text>
-          {theme.theme === "light" ? `${t("dark_mode")}` : `${t("light_mode")}`}
+    <ScrollView style={styles.container as ViewStyle}>
+      <Divider />
+
+      {/* Account Settings */}
+      <Layout style={styles.section as ViewStyle}>
+        <Text category="h6" style={styles.sectionTitle as TextStyle}>
+          {t("account_settings")}
         </Text>
-      </Layout> */}
-      <Layout style={styles.settingContent as ViewStyle}>
-        <Button
-          style={styles.settingIcon as ViewStyle}
-          appearance="outline"
-          accessoryLeft={(props): IconElement => (
-            <Icon {...props} name={"printer"} />
-          )}
-          onPress={() => RootNavigation.navigate("PrinterScreen")}
-        >
-          <Text>{`${t("connect_ble_printer")}`}</Text>
-        </Button>
-      </Layout>
-      <Layout style={styles.settingContent as ViewStyle}>
-        <Button
-          style={styles.settingIcon as ViewStyle}
-          appearance="outline"
-          accessoryLeft={(props): IconElement => (
-            <Icon {...props} name={"shield"} />
-          )}
+        <SettingItem
+          icon="person"
+          title={t("profile_settings")}
+          onPress={() => RootNavigation.navigate("ProfileScreen")}
+        />
+        <SettingItem
+          icon="shield"
+          title={t("password_change")}
           onPress={() => RootNavigation.navigate("PasswordScreen")}
-        >
-          <Text>{`${t("password_change")}`}</Text>
-        </Button>
+        />
       </Layout>
-    </Layout>
+
+      {/* Store Settings */}
+      <Layout style={styles.section as ViewStyle}>
+        <Text category="h6" style={styles.sectionTitle as TextStyle}>
+          {t("store_settings")}
+        </Text>
+        <SettingItem
+          icon="printer"
+          title={t("connect_ble_printer")}
+          onPress={() => RootNavigation.navigate("PrinterScreen")}
+        />
+        <SettingItem
+          icon="shopping-bag"
+          title={t("inventory_management")}
+          onPress={() => RootNavigation.navigate("InventoryScreen")}
+        />
+      </Layout>
+
+      {/* App Settings */}
+      <Layout style={styles.section as ViewStyle}>
+        <Text category="h6" style={styles.sectionTitle as TextStyle}>
+          {t("app_settings")}
+        </Text>
+        <SettingItem
+          icon="globe"
+          title={t("language")}
+          onPress={() => RootNavigation.navigate("LanguageScreen")}
+        />
+        {/* <SettingItem
+          icon="bell"
+          title={t("notifications")}
+          onPress={() => RootNavigation.navigate("NotificationsScreen")}
+        /> */}
+      </Layout>
+
+      {/* Logout Button */}
+      <Layout style={styles.logoutSection as ViewStyle}>
+        <SettingItem
+          icon="log-out"
+          title={t("logout")}
+          status="danger"
+          onPress={async () => {
+            try {
+              await logout();
+              if (onLoggedOut) {
+                onLoggedOut();
+              }
+            } catch (error) {
+              console.error("Logout error:", error);
+            }
+          }}
+        />
+      </Layout>
+    </ScrollView>
   );
 };
 
 const styleSheet = StyleService.create({
-  settingLayout: {
+  container: {
     flex: 1,
-    justifyContent: "flex-start",
-    alignItems: "flex-start",
+    backgroundColor: "background-basic-color-1",
   },
-  settingContent: {
-    // flex: 1,
+  profileSection: {
+    padding: 16,
     flexDirection: "row",
-    justifyContent: "flex-start",
     alignItems: "center",
   },
-  settingIcon: {
-    backgroundColor: "transparent",
-    borderWidth: 0,
+  avatar: {
+    marginRight: 16,
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  section: {
+    padding: 16,
+  },
+  sectionTitle: {
+    marginBottom: 8,
+    color: "text-hint-color",
+  },
+  settingItem: {
+    justifyContent: "flex-start",
+    marginVertical: 4,
+  },
+  logoutSection: {
+    padding: 16,
+    marginTop: 16,
   },
 });
 

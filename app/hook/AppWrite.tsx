@@ -58,6 +58,7 @@ export const COLLECTION_IDS = {
 };
 interface GraphQLResponse {
   errors?: Array<{ message: string }>;
+  [key: string]: any;
 }
 export const DATA_ATOM = {
   products: {
@@ -178,19 +179,22 @@ export function useAccounts() {
   const joinTeam = async (
     teamId: string,
     email: string,
-    role: string[],
+    role: string[], // Giữ nguyên kiểu dữ liệu là string[]
     redirectUrl: string
   ) => {
-    return teams.createMembership(teamId, email, role, redirectUrl).then(
-      function (response) {
-        console.log("joinTeam success::", response);
-        return true;
-      },
-      function (error) {
-        console.log("joinTeam err:", error);
-        return false;
-      }
-    );
+    // Bỏ biến roleArray, sử dụng trực tiếp role
+    return teams
+      .createMembership(teamId, email as any, role as any, redirectUrl)
+      .then(
+        function (response) {
+          console.log("joinTeam success::", response);
+          return true;
+        },
+        function (error) {
+          console.log("joinTeam err:", error);
+          return false;
+        }
+      );
   };
   const getSession = async () => {
     try {
@@ -260,17 +264,19 @@ export function useAccounts() {
     AsyncStorage.removeItem("userPrefs");
 
     try {
-      const response = await graphql.mutation<GraphQLResponse>({
+      // Sửa cách sử dụng mutation
+      const response = (await graphql.mutation({
         query: `mutation {
-                accountDeleteSession(
-                    sessionId: "current"
-                ) {
-                    status
-                }
-            }`,
-      });
+                  accountDeleteSession(
+                      sessionId: "current"
+                  ) {
+                      status
+                  }
+              }`,
+      })) as GraphQLResponse;
 
-      if (response && response.errors) {
+      // Sửa kiểm tra errors
+      if (response && response.errors && response.errors.length > 0) {
         throw response.errors[0].message;
       }
     } catch (error) {

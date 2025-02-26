@@ -183,6 +183,7 @@ function MainScreen() {
   const [appwrite, setAppwrite] = useState<any>(null);
   const [pushToken, setPushToken] = useState<string>("");
   const Stack = createStackNavigator<RootStackParamList>();
+
   const toggleTheme = () => {
     const nextTheme = theme === "light" ? "dark" : "light";
     setTheme(nextTheme);
@@ -249,10 +250,10 @@ function MainScreen() {
                   theme={eva[theme]}
                 >
                   <NavigationIndependentTree>
-                    {/* <BLEProvider> */}
-                    <NavigationContainer ref={RootNavigation.navigationRef}>
-                      <Stack.Navigator screenOptions={{ headerShown: false }}>
-                        {/* <Stack.Screen
+                    <BLEProvider>
+                      <NavigationContainer ref={RootNavigation.navigationRef}>
+                        <Stack.Navigator screenOptions={{ headerShown: false }}>
+                          {/* <Stack.Screen
                           name="Main"
                           component={Drawer}
                           initialParams={{
@@ -261,29 +262,34 @@ function MainScreen() {
                           }}
                           options={{ headerShown: false }}
                         /> */}
-                        {!isLoggedIn ? (
-                          <Stack.Screen
-                            name="Login"
-                            component={LoginScreen}
-                            initialParams={{
-                              onLoggedIn: () => setIsLoggedIn(true),
-                            }}
-                            options={{ headerShown: false }}
-                          />
-                        ) : (
-                          <Stack.Screen
-                            name="Main"
-                            component={Drawer}
-                            initialParams={{
-                              pushToken: pushToken,
-                              onLoggedOut: () => setIsLoggedIn(false),
-                            }}
-                            options={{ headerShown: false }}
-                          />
-                        )}
-                      </Stack.Navigator>
-                    </NavigationContainer>
-                    {/* </BLEProvider> */}
+                          {!isLoggedIn ? (
+                            <Stack.Screen
+                              name="Login"
+                              component={LoginScreen}
+                              initialParams={{
+                                onLoggedIn: () => setIsLoggedIn(true),
+                              }}
+                              options={{ headerShown: false }}
+                            />
+                          ) : (
+                            <Stack.Screen
+                              name="Main"
+                              component={Drawer}
+                              initialParams={{
+                                pushToken: pushToken,
+                                onLoggedOut: () => {
+                                  console.log(
+                                    "onLoggedOut trong index.tsx được gọi"
+                                  );
+                                  setIsLoggedIn(false);
+                                },
+                              }}
+                              options={{ headerShown: false }}
+                            />
+                          )}
+                        </Stack.Navigator>
+                      </NavigationContainer>
+                    </BLEProvider>
                   </NavigationIndependentTree>
                 </ApplicationProvider>
               </AppwriteContext.Provider>

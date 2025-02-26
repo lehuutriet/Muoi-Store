@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from "react";
-// import * as Print from "expo-print";
-// import * as Sharing from "expo-sharing";
 
 import {
   ScrollView,
@@ -46,18 +44,14 @@ import { useRecoilState, useRecoilValue } from "recoil";
 import { allTablesAtom, currentOrderAtom, userAtom } from "../states";
 import { useDatabases, COLLECTION_IDS } from "../hook/AppWrite";
 import * as RootNavigation from "../navigator/RootNavigation";
-
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
 const vndMask = createNumberMask({
   // prefix: ['đ'],
   delimiter: ",",
   separator: ",",
   precision: 3,
 });
-interface RouteProps {
-  params?: {
-    receiptData?: any;
-  };
-}
+
 interface Table {
   $id: string;
   name: string;
@@ -70,37 +64,26 @@ interface OrderItem {
   count: number;
 }
 
-interface UpdateOrderListParams {
-  newItem: OrderItem;
-  method: "add" | "sub";
-}
-interface NavigationProps {
-  navigate: (screen: string, params?: any) => void;
-  setOptions: (options: any) => void;
-  reset: (config: any) => void;
-}
+type RootStackParamList = {
+  ReviewOrderScreen: { orderInfo?: any };
+  ReceiptScreen: { receiptData: any };
+  CreateOrderScreen: { method: string };
+  // Thêm các màn hình khác mà bạn cần điều hướng từ ReviewOrderScreen
+};
 
-interface StyleProps {
-  container: ViewStyle;
-  cardItem: ViewStyle;
-  productCard: ViewStyle;
-  cardInfo: ViewStyle;
-  cardImg: ImageStyle;
-  countBtn: ViewStyle;
-  countIcon: ViewStyle;
-  input: TextStyle;
-  buttons: ViewStyle;
-}
-const ReviewOrderScreen = ({
+// Sử dụng NativeStackScreenProps để định nghĩa props
+type ReviewOrderScreenProps = NativeStackScreenProps<
+  RootStackParamList,
+  "ReviewOrderScreen"
+>;
+
+const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
   route,
   navigation,
-}: {
-  route: RouteProps;
-  navigation: NavigationProps;
 }) => {
   console.log("ReviewOrderScreen params::");
   const styles = useStyleSheet(styleSheet);
-  const theme = useTheme();
+
   const { t } = useTranslation();
   const { createItem, updateItem } = useDatabases();
   const [waiting, setWaiting] = useState(false);
@@ -173,161 +156,6 @@ const ReviewOrderScreen = ({
     setOrder({ ...order, order: newOrder });
     console.log("updateOrderList::", item, order, method);
   };
-  // const generateHTML = () => {
-  //   const itemsHTML = products
-  //     .map(
-  //       (product) => `
-  //     <tr>
-  //       <td>${product.name}</td>
-  //       <td>${product.quantity}</td>
-  //       <td>${product.price.toFixed(2)}</td>
-  //       <td>${(product.price * product.quantity).toFixed(2)}</td>
-  //     </tr>
-  //   `
-  //     )
-  //     .join("");
-
-  //   const total = products.reduce(
-  //     (sum, product) => sum + product.price * product.quantity,
-  //     0
-  //   );
-
-  //   const text =
-  //     "[C]<img>https://via.placeholder.com/300.jpg</img>\n" +
-  //     "[L]\n" +
-  //     "[C]<u><font size='big'>ORDER N°045</font></u>\n" +
-  //     "[L]\n" +
-  //     "[C]================================\n" +
-  //     "[L]\n" +
-  //     "[L]<b>BEAUTIFUL SHIRT</b>[R]9.99e\n" +
-  //     "[L]  + Size : S\n" +
-  //     "[L]\n" +
-  //     "[L]<b>AWESOME HAT</b>[R]24.99e\n" +
-  //     "[L]  + Size : 57/58\n" +
-  //     "[L]\n" +
-  //     "[C]--------------------------------\n" +
-  //     "[R]TOTAL PRICE :[R]34.98e\n" +
-  //     "[R]TAX :[R]4.23e\n" +
-  //     "[L]\n" +
-  //     "[C]================================\n" +
-  //     "[L]\n" +
-  //     "[L]<font size='tall'>Customer :</font>\n" +
-  //     "[L]Raymond DUPONT\n" +
-  //     "[L]Đây là một tô bún bò huế \n" +
-  //     "[L]31547 PERPETES\n" +
-  //     "[L]Tel : +33801201456\n" +
-  //     "[L]\n" +
-  //     "[C]<barcode type='ean13' height='10'>831254784551</barcode>\n" +
-  //     "[C]<qrcode size='20'>http://www.developpeur-web.dantsu.com/</qrcode>\n" +
-  //     "[L]\n" +
-  //     "[L]\n" +
-  //     "[L]\n" +
-  //     "[L]\n" +
-  //     "[L]\n";
-
-  //   return text;
-
-  //   // return `
-  //   //   <html>
-  //   //     <head>
-  //   //       <style>
-  //   //         table {
-  //   //           width: 100%;
-  //   //           border-collapse: collapse;
-  //   //         }
-  //   //         th, td {
-  //   //           border: 1px solid black;
-  //   //           padding: 8px;
-  //   //           text-align: left;
-  //   //         }
-  //   //         th {
-  //   //           background-color: #f2f2f2;
-  //   //         }
-  //   //       </style>
-  //   //     </head>
-  //   //     <body>
-  //   //       <h2>Order Review</h2>
-  //   //       <table>
-  //   //         <thead>
-  //   //           <tr>
-  //   //             <th>Product</th>
-  //   //             <th>Quantity</th>
-  //   //             <th>Price</th>
-  //   //             <th>Total</th>
-  //   //           </tr>
-  //   //         </thead>
-  //   //         <tbody>
-  //   //           ${itemsHTML}
-  //   //           <tr>
-  //   //             <td colspan="3">Grand Total</td>
-  //   //             <td>${total.toFixed(2)}</td>
-  //   //           </tr>
-  //   //         </tbody>
-  //   //       </table>
-  //   //     </body>
-  //   //   </html>
-  //   // `;
-  // };
-
-  // const handlePrint = async () => {
-  //   const html = generateHTML();
-  //   const pdf = await Print.printToFileAsync({ html });
-
-  //   if (!(await Sharing.isAvailableAsync())) {
-  //     alert("Sharing is not available on this device");
-  //     return;
-  //   }
-
-  //   await Sharing.shareAsync(pdf.uri);
-  // };
-
-  //   const renderItem = (info): React.ReactElement => (
-  //     <Card
-  //       style={styles.item}
-  //       status="basic"
-  //       // header={(headerProps) => renderItemHeader(headerProps, info)}
-  //       // footer={renderItemFooter}
-  //       onPress={() => {
-  //         console.log("item pressed::", info.item);
-  //       }}
-  //     >
-  //   <View style={styles.productCard}>
-  //     <ImageBackground
-  //       style={styles.cardImg}
-  //       source={require("../../assets/icons/food-default.png")}
-  //       resizeMode="contain"
-  //     ></ImageBackground>
-
-  //     <View style={styles.cardInfo}>
-  //       <View style={{ paddingLeft: 10 }}>
-  //         <Text> mi vit tiem</Text>
-
-  //       <View
-  //         style={{
-  //           display: "flex",
-  //           flexDirection: "row",
-  //           alignItems: "center",
-  //         }}
-  //       >
-  //         <Button
-  //           style={styles.countBtn}
-  //           accessoryRight={() => (
-  //             <Icon style={styles.countIcon} fill="red" name="minus-circle" />
-  //           )}
-  //         ></Button>
-  //         <Text style={{ textAlign: "center" }}> 3</Text>
-  //         <Button
-  //           style={styles.countBtn}
-  //           accessoryRight={() => (
-  //             <Icon style={styles.countIcon} fill="green" name="plus-circle" />
-  //           )}
-  //         ></Button>
-  //       </View>
-  //       </View>
-  //     </View>
-  //   </View>
-
-  // );
 
   const showAlertConfirm = (tilte: string, message: string) =>
     Alert.alert(
@@ -337,53 +165,86 @@ const ReviewOrderScreen = ({
         {
           text: t("cash"),
           onPress: () => {
-            return saveOrder("cash");
+            saveOrder("cash");
           },
           style: "default",
         },
         {
           text: t("transfer"),
           onPress: () => {
-            return saveOrder("transfer");
+            saveOrder("transfer");
           },
           style: "default",
         },
       ],
       {
         cancelable: true,
-        // onDismiss: () =>
-        //   Alert.alert(
-        //     'This alert was dismissed by tapping outside of the alert dialog.',
-        //   ),
       }
     );
 
   const saveOrder = async (orderStatus = "unpaid") => {
+    console.log("saveOrder được gọi với status:", orderStatus);
+
     if (order) {
-      setWaiting(true);
-      const data = {
-        userId: userInfo.id,
-        pushToken: userInfo.PUSH_TOKEN,
-        order: JSON.stringify(order.order),
-        status: orderStatus,
-        note: order.note,
-        table:
-          tables.length > 0 && selectedTableIndex.row > 0
-            ? tables[selectedTableIndex.row - 1].name
-            : null,
-        subtract: order.subtract,
-        discount: order.discount,
-        $createdAt: order.date.toISOString(),
-        date: order.date.toLocaleString("en-GB"),
-        total: finalPrice,
-      };
-      console.log("saveOrder called::", order.$id, data);
-      const result = order.$id
-        ? await updateItem(COLLECTION_IDS.orders, order.$id, data)
-        : await createItem(COLLECTION_IDS.orders, data);
-      result && result.$id ? setOrder({ ...order, $id: result.$id }) : null;
-      setWaiting(false);
-      navigation.navigate("ReceiptScreen", { receiptData: result });
+      try {
+        setWaiting(true);
+        console.log("Current order:", order);
+
+        // Chuyển đổi mỗi item trong order thành chuỗi và tạo mảng chuỗi
+        const orderStringArray = order.order.map((item) => {
+          // Chỉ lấy các thông tin cần thiết để giảm kích thước
+          const simpleItem = {
+            $id: item.$id,
+            name: item.name,
+            price: item.price,
+            count: item.count,
+          };
+          return JSON.stringify(simpleItem);
+        });
+
+        const data = {
+          order: orderStringArray, // Mảng chuỗi thay vì một chuỗi duy nhất
+          status: orderStatus,
+          note: order.note,
+          table:
+            tables.length > 0 && selectedTableIndex.row > 0
+              ? tables[selectedTableIndex.row - 1].name
+              : null,
+          subtract: order.subtract,
+          discount: order.discount,
+          date: order.date.toISOString(), // Giữ lại trường date là đủ
+          // formattedDate: order.date.toLocaleString("en-GB"), // Xóa hoặc comment dòng này
+          total: finalPrice,
+        };
+
+        console.log("Data sẽ lưu:", data);
+
+        let result;
+
+        if (order.$id) {
+          console.log("Cập nhật đơn hàng với ID:", order.$id);
+          result = await updateItem(COLLECTION_IDS.orders, order.$id, data);
+        } else {
+          console.log("Tạo đơn hàng mới");
+          result = await createItem(COLLECTION_IDS.orders, data);
+        }
+
+        console.log("Kết quả lưu đơn hàng:", result);
+
+        if (result && result.$id) {
+          console.log("Điều hướng đến ReceiptScreen");
+          navigation.navigate("ReceiptScreen", { receiptData: result });
+        } else {
+          console.log("Không nhận được kết quả trả về hợp lệ");
+        }
+      } catch (error) {
+        console.error("Lỗi trong saveOrder:", error);
+        Alert.alert(t("error"), t("save_order_error"));
+      } finally {
+        setWaiting(false);
+      }
+    } else {
+      console.log("Order không tồn tại hoặc không hợp lệ");
     }
   };
 
@@ -391,9 +252,6 @@ const ReviewOrderScreen = ({
     <Card
       key={item.$id}
       style={styles.cardItem as ViewStyle}
-      // status="basic"
-      // header={(headerProps) => renderItemHeader(headerProps, info)}
-      // footer={renderItemFooter}
       onPress={() => {
         console.log("item pressed::", item);
       }}
@@ -565,19 +423,6 @@ const ReviewOrderScreen = ({
               textAlign="right"
               placeholder="0 - 100"
               keyboardType="numeric"
-              // caption={() => (
-              //   <Text
-              //     status="danger"
-              //     style={{
-              //       fontSize: 13,
-              //       width: "100%",
-              //       backgroundColor: "pink",
-              //       textAlign: "right",
-              //     }}
-              //   >
-              //     *0-100
-              //   </Text>
-              // )}
               onChangeText={(nextValue) =>
                 parseInt(nextValue) >= 0 && parseInt(nextValue) <= 100
                   ? setOrder({ ...order, discount: parseInt(nextValue) })
@@ -671,7 +516,21 @@ const ReviewOrderScreen = ({
           {t("save_order")}
         </Button>
         <Button
-          style={{ flex: 1, marginLeft: 5 }}
+          style={{
+            flex: 1,
+            marginLeft: 5,
+            borderRadius: 8,
+            backgroundColor: "#4caf50", // Màu xanh lá cố định thay vì dùng theme
+            borderColor: "#388e3c",
+            elevation: 3,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.2,
+            shadowRadius: 2,
+          }}
+          accessoryLeft={(props) => (
+            <Icon {...props} fill="white" name="credit-card-outline" />
+          )}
           onPress={() => showAlertConfirm(t("payment"), t("payment_msg"))}
         >
           {t("payment")}
@@ -679,22 +538,6 @@ const ReviewOrderScreen = ({
       </Layout>
       <WaitingModal waiting={waiting} />
     </Layout>
-
-    // <View style={styles.container}>
-    //   <ScrollView>
-
-    //     {products.map((product) => (
-    //       <View key={product.id} style={styles.item}>
-    //         <Text style={styles.itemName}>{product.name}</Text>
-    //         <Text style={styles.itemQuantity}>{product.quantity}</Text>
-    //         <Text style={styles.itemPrice}>
-    //           {(product.price * product.quantity).toFixed(2)}
-    //         </Text>
-    //       </View>
-    //     ))}
-
-    //   </ScrollView>
-    // </View>
   );
 };
 
@@ -712,9 +555,6 @@ const styleSheet = StyleService.create({
     flexDirection: "row",
   },
   cardInfo: {
-    // padding: 10,
-    // backgroundColor: "pink",
-    // display: "flex",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -750,22 +590,6 @@ const styleSheet = StyleService.create({
     padding: 10,
     paddingBottom: 30,
   },
-
-  // itemName: {
-  //   fontSize: 16,
-  // },
-  // itemQuantity: {
-  //   fontSize: 16,
-  // },
-  // itemPrice: {
-  //   fontSize: 16,
-  // },
-  // closeText: {
-  //   textAlign: "center",
-  //   fontSize: 16,
-  //   color: "blue",
-  //   padding: 16,
-  // },
 });
 
 export default ReviewOrderScreen;

@@ -4,15 +4,15 @@ import {
   StyleSheet,
   View,
   Dimensions,
-  ListRenderItemInfo,
   ViewStyle,
+  TextStyle,
 } from "react-native";
-// import { Button } from "react-native-elements";
 import { StackNavigationProp } from "@react-navigation/stack";
-import { Layout, Button, List, ListItem } from "@ui-kitten/components";
+import { Layout, Text, Card, Icon } from "@ui-kitten/components";
 import { FloatingAction } from "react-native-floating-action";
 import { StyleService, useStyleSheet } from "@ui-kitten/components";
-import { CategoryList } from "../components/category";
+
+// Định nghĩa kiểu cho navigation prop
 type RootStackParamList = {
   CreateOrderScreen: {
     title: string;
@@ -84,50 +84,99 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
     },
   ];
 
+  const renderCategoryCard = (item: any) => (
+    <Card
+      style={styles.card as ViewStyle}
+      onPress={() => navigation.navigate(item.screenName)}
+    >
+      <Icon
+        style={styles.cardIcon}
+        fill="#3366FF"
+        name={item.icon}
+        width={32}
+        height={32}
+      />
+      <Text category="h6" style={styles.cardTitle as TextStyle}>
+        {item.title}
+      </Text>
+    </Card>
+  );
+
   return (
-    <Layout style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+    <Layout style={styles.rootContainer as ViewStyle}>
       <View style={styles.container as ViewStyle}>
-        <CategoryList data={allCategoryAtom} />
-        <FloatingAction
-          actions={actions}
-          onPressItem={(screenName: string | undefined) => {
-            console.log(`selected button:: ${screenName}`);
-            if (
-              screenName === "CreateOrderScreen" ||
-              screenName === "CreateProductScreen"
-            ) {
-              navigation.navigate(screenName, {
-                title:
-                  screenName === "CreateOrderScreen"
-                    ? t("create_order")
-                    : t("create_product"),
-                method: "create",
-              });
-            }
-          }}
-        />
+        {allCategoryAtom.map((item, index) => (
+          <View key={item.id} style={styles.cardWrapper as ViewStyle}>
+            {renderCategoryCard(item)}
+          </View>
+        ))}
       </View>
+
+      <FloatingAction
+        actions={actions}
+        color="#3366FF"
+        overlayColor="rgba(68, 68, 68, 0.6)"
+        onPressItem={(screenName: string | undefined) => {
+          if (
+            screenName === "CreateOrderScreen" ||
+            screenName === "CreateProductScreen"
+          ) {
+            navigation.navigate(screenName, {
+              title:
+                screenName === "CreateOrderScreen"
+                  ? t("create_order")
+                  : t("create_product"),
+              method: "create",
+            });
+          }
+        }}
+      />
     </Layout>
   );
 };
 
 const styleSheet = StyleService.create({
+  rootContainer: {
+    flex: 1,
+    backgroundColor: "background-basic-color-1",
+  } as ViewStyle,
+  header: {
+    padding: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: "border-basic-color-3",
+  } as ViewStyle,
+  headerTitle: {
+    marginBottom: 8,
+    fontWeight: "bold",
+  },
   container: {
     flex: 1,
-    width: "100%",
-    justifyContent: "center",
-    alignItems: "center",
+    padding: 16,
     flexDirection: "row",
     flexWrap: "wrap",
-    // paddingHorizontal: 20,
+    justifyContent: "space-between",
   },
-  contentContainer: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+  cardWrapper: {
+    width: "48%",
+    marginBottom: 16,
   },
-  buttonContainer: {
-    width: "45%",
-    margin: 10,
+  card: {
+    borderRadius: 12,
+    padding: 16,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    alignItems: "center", // Thêm dòng này để căn giữa tất cả nội dung trong card
+  },
+  cardIcon: {
+    marginBottom: 12,
+    alignSelf: "center",
+  },
+  cardTitle: {
+    textAlign: "center",
+    fontWeight: "600",
   },
 });
 

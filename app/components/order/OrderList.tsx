@@ -105,26 +105,24 @@ const OrderList = ({
   useEffect(() => {
     let queries: string[] = [];
     const formatDate = date.toLocaleString("en-GB").slice(0, 10);
+    // Bỏ điều kiện lọc theo ngày để xem tất cả đơn hàng
     switch (status) {
       case "all":
         queries = [
           Query.limit(orderLimit),
-          Query.startsWith("date", formatDate),
-          Query.orderDesc("date"),
+          Query.orderDesc("$createdAt"), // Dùng $createdAt thay vì date
         ];
         break;
       case "unpaid":
         queries = [
           Query.equal("status", "unpaid"),
-          Query.startsWith("date", formatDate),
-          Query.orderDesc("date"),
+          Query.orderDesc("$createdAt"),
         ];
         break;
       case "paid":
         queries = [
           Query.equal("status", ["cash", "transfer"]),
-          Query.startsWith("date", formatDate),
-          Query.orderDesc("date"),
+          Query.orderDesc("$createdAt"),
         ];
         break;
       default:
@@ -170,6 +168,12 @@ const OrderList = ({
 
   const viewOrder = async (orderInfo: any) => {
     console.log("orderInfo::", orderInfo);
+
+    // Chuyển đổi mảng chuỗi thành mảng đối tượng
+    const parsedOrderItems = orderInfo.order.map((itemString: any) =>
+      JSON.parse(itemString)
+    );
+
     setOrder({
       $id: orderInfo.$id,
       note: orderInfo.note,
@@ -178,8 +182,9 @@ const OrderList = ({
       discount: orderInfo.discount,
       subtract: orderInfo.subtract,
       date: new Date(orderInfo.$createdAt),
-      order: JSON.parse(orderInfo.order),
+      order: parsedOrderItems,
     });
+
     resetProductList().then(() => {
       RootNavigation.navigate("ReviewOrderScreen");
     });

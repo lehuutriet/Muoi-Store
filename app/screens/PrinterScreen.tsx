@@ -13,16 +13,25 @@ import {
 import { useTranslation } from "react-i18next";
 import { ImageStyle, View, ViewStyle } from "react-native";
 import { useBLE } from "../hook/BLEContext";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-interface PrinterScreenProps {
-  route: string;
-  navigation: string;
-}
+// Import kiểu RootStackParamList từ file định nghĩa (nếu bạn đã tạo)
+// hoặc định nghĩa lại ở đây
+type RootStackParamList = {
+  PrinterScreen: undefined;
+  // Thêm các route khác nếu cần
+};
+
+// Sử dụng NativeStackScreenProps để định nghĩa đúng kiểu props
+type PrinterScreenProps = NativeStackScreenProps<
+  RootStackParamList,
+  "PrinterScreen"
+>;
 
 interface Device {
   id: string;
   name: string | null;
-  txPowerLevel: number | null | undefined; // thêm kiểu null và undefined
+  txPowerLevel: number | null | undefined;
 }
 
 interface ListRenderItemInfo {
@@ -30,12 +39,8 @@ interface ListRenderItemInfo {
   index: number;
 }
 
-interface CardStyleProps {
-  style?: ViewStyle;
-}
-
 // Sửa lại component chính
-const PrinterScreen: React.FC<PrinterScreenProps> = ({ route, navigation }) => {
+const PrinterScreen: React.FC<PrinterScreenProps> = ({ navigation, route }) => {
   const {
     manager,
     device,
@@ -111,8 +116,10 @@ const PrinterScreen: React.FC<PrinterScreenProps> = ({ route, navigation }) => {
       </View>
     </Card>
   );
+
   return (
     <Layout level="1" style={styles.mainLayout as ViewStyle}>
+      {/* Phần còn lại của component giữ nguyên */}
       <View style={{ paddingTop: 16, paddingLeft: 16, paddingRight: 16 }}>
         <Text>{t("printer_decription")}</Text>
       </View>
@@ -174,7 +181,6 @@ const PrinterScreen: React.FC<PrinterScreenProps> = ({ route, navigation }) => {
         {devices.length > 0 ? (
           <List
             style={{ backgroundColor: "transparent" }}
-            // contentContainerStyle={styles.listContainer}
             data={devices.filter(
               (device) =>
                 connetedDevice.findIndex((item) => device.id === item.id) < 0

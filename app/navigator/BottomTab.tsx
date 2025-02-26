@@ -39,8 +39,10 @@ const BottomTabBar = ({ navigation, state }) => {
     </BottomNavigation>
   );
 };
-
-const TabNavigator = () => {
+interface TabNavigatorProps {
+  onLoggedOut?: () => void;
+}
+const TabNavigator: React.FC<TabNavigatorProps> = ({ onLoggedOut }) => {
   const { t } = useTranslation();
   return (
     <Navigator tabBar={(props) => <BottomTabBar {...props} />}>
@@ -51,15 +53,6 @@ const TabNavigator = () => {
           title: `${t("home")}`,
           headerShown: false,
           headerTitleAlign: "left",
-          // headerLeft: () => (
-          //   <Button
-          //     // title="Open drawer"
-          //     style={styles.menuIcon}
-          //     accessoryLeft={(props) => <Icon {...props} name="menu-2" />}
-          //     onPress={() => props.drawer.current?.openDrawer()}
-          //     appearance="outline"
-          //   />
-          // ),
         })}
       />
       <Screen
@@ -68,36 +61,17 @@ const TabNavigator = () => {
         options={({ navigation }) => ({
           title: `${t("statistic")}`,
           headerTitleAlign: "left",
-          // headerShown: false,
-          // headerLeft: () => (
-          //   <Button
-          //     // title="Open drawer"
-          //     style={styles.menuIcon}
-          //     accessoryLeft={(props) => <Icon {...props} name="menu-2" />}
-          //     onPress={() => props.drawer.current?.openDrawer()}
-          //     appearance="outline"
-          //   />
-          // ),
         })}
       />
       <Screen
         name={`${t("setting")}`}
-        component={SettingScreen}
         options={({ navigation }) => ({
           title: `${t("setting")}`,
           headerTitleAlign: "left",
-          // headerShown: false
-          // headerLeft: () => (
-          //   <Button
-          //     // title="Open drawer"
-          //     style={styles.menuIcon}
-          //     accessoryLeft={(props) => <Icon {...props} name="menu-2" />}
-          //     appearance="outline"
-          //     // onPress={() => props.drawer.current?.openDrawer()}
-          //   />
-          // ),
         })}
-      />
+      >
+        {(props) => <SettingScreen {...props} onLoggedOut={onLoggedOut} />}
+      </Screen>
     </Navigator>
   );
 };

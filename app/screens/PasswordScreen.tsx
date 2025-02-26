@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useState } from "react";
 import { useRecoilState } from "recoil";
 import { userAtom } from "../states";
 import { useTranslation } from "react-i18next";
@@ -8,9 +8,6 @@ import {
   Text,
   Button,
   Icon,
-  Spinner,
-  Modal,
-  Card,
   StyleService,
   useStyleSheet,
 } from "@ui-kitten/components";
@@ -20,19 +17,19 @@ import {
   View,
   SafeAreaView,
   Dimensions,
-  Animated,
-  Easing,
-  ImageBackground,
-  BackHandler,
   ViewStyle,
   TextStyle,
   ImageStyle,
 } from "react-native";
 import { useAccounts } from "../hook/AppWrite";
 import { WaitingModal } from "../components/common";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-interface PasswordScreenProps {
-  onLoggedIn: () => void;
+// Định nghĩa kiểu linh hoạt hơn để phù hợp với cả hai cách sử dụng
+interface PasswordScreenCustomProps {
+  onLoggedIn?: () => void;
+  route?: { params?: { onLoggedIn?: () => void } };
+  navigation?: any;
 }
 
 interface StyleType {
@@ -45,16 +42,12 @@ interface StyleType {
   submitButton: ViewStyle;
 }
 
-interface Session {
-  $id: string;
-  userId: string;
-}
-
 interface RenderIconProps {
   style: ImageStyle;
   fill?: string;
   name: string;
 }
+
 const showAlert = (title: string, message: string): void => {
   Alert.alert(
     title,
@@ -71,16 +64,18 @@ const showAlert = (title: string, message: string): void => {
   );
 };
 
-const PasswordScreen: React.FC<PasswordScreenProps> = ({ onLoggedIn }) => {
+// Sử dụng định nghĩa props linh hoạt hơn
+const PasswordScreen: React.FC<PasswordScreenCustomProps> = (props) => {
+  // Lấy onLoggedIn từ props hoặc route.params
+  const onLoggedIn = props.onLoggedIn || props.route?.params?.onLoggedIn;
+
   const styles = useStyleSheet(styleSheet);
-  const { getSession, login, updatePassword } = useAccounts();
+  const { updatePassword } = useAccounts();
   const { t } = useTranslation();
   const [waiting, setWaiting] = useState<boolean>(false);
   const [userInfo, setUserInfo] = useRecoilState(userAtom);
 
   const [alert, setAlert] = useState<string>("");
-  const [currentSession, setCurrentSession] = useState<Session | null>(null);
-
   const [oldPassword, setOldPassword] = useState<string>("");
   const [newPassword, setNewPassword] = useState<string>("");
   const [secureTextEntry, setSecureTextEntry] = useState<boolean>(true);
@@ -121,10 +116,12 @@ const PasswordScreen: React.FC<PasswordScreenProps> = ({ onLoggedIn }) => {
     try {
       const result = await updatePassword(oldPassword, newPassword);
 
-      // Kiểm tra xem result có phải là UpdatePasswordResponse không
       if ("message" in result) {
         if (result.status) {
           showAlert(t("inform"), t("update_password_success"));
+          if (onLoggedIn) {
+            onLoggedIn();
+          }
         } else {
           const message = result.message.startsWith("Invalid password")
             ? t("invalid_password")
@@ -133,6 +130,9 @@ const PasswordScreen: React.FC<PasswordScreenProps> = ({ onLoggedIn }) => {
         }
       } else {
         showAlert(t("inform"), t("update_password_success"));
+        if (onLoggedIn) {
+          onLoggedIn();
+        }
       }
     } catch (error) {
       showAlert(t("error"), t("update_password_error"));
@@ -181,6 +181,7 @@ const PasswordScreen: React.FC<PasswordScreenProps> = ({ onLoggedIn }) => {
 };
 
 const styleSheet = StyleService.create<StyleType>({
+  // Styles giữ nguyên
   backgroundImg: {
     position: "absolute",
     width: 1200,
@@ -217,7 +218,7 @@ const styleSheet = StyleService.create<StyleType>({
   captionText: {
     fontSize: 12,
     fontWeight: "400",
-    color: "#8F9BB3",
+    color: "#8F9FB3",
   },
   submitButton: {
     marginTop: 20,
