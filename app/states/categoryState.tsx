@@ -8,12 +8,12 @@ export const allCategoryAtom = atom<Category[]>({
   default: [],
 });
 
-export const categoryIdsAtom = atom({
+export const categoryIdsAtom = atom<string[]>({
   key: "categoryIds",
   default: [],
 });
 
-export const categoryAtomFamily = atomFamily({
+export const categoryAtomFamily = atomFamily<Category, string>({
   key: "categoryAtomFamily",
   default: {
     $id: "",

@@ -104,32 +104,54 @@ const OrderList = ({
 
   useEffect(() => {
     let queries: string[] = [];
-    const formatDate = date.toLocaleString("en-GB").slice(0, 10);
-    // Bỏ điều kiện lọc theo ngày để xem tất cả đơn hàng
+
+    // Chuyển đổi định dạng ngày cho đúng - sử dụng định dạng YYYY-MM-DD
+    const formatDate = date.toISOString().split("T")[0];
+
+    // Lấy giới hạn ngày - từ 00:00:00 đến 23:59:59 của ngày được chọn
+    const startDate = new Date(date);
+    startDate.setHours(0, 0, 0, 0);
+
+    const endDate = new Date(date);
+    endDate.setHours(23, 59, 59, 999);
+
     switch (status) {
       case "all":
         queries = [
           Query.limit(orderLimit),
-          Query.orderDesc("$createdAt"), // Dùng $createdAt thay vì date
+          Query.greaterThanEqual("$createdAt", startDate.toISOString()),
+          Query.lessThanEqual("$createdAt", endDate.toISOString()),
+          Query.orderDesc("$createdAt"),
         ];
         break;
       case "unpaid":
         queries = [
           Query.equal("status", "unpaid"),
+          Query.greaterThanEqual("$createdAt", startDate.toISOString()),
+          Query.lessThanEqual("$createdAt", endDate.toISOString()),
           Query.orderDesc("$createdAt"),
         ];
         break;
       case "paid":
         queries = [
           Query.equal("status", ["cash", "transfer"]),
+          Query.greaterThanEqual("$createdAt", startDate.toISOString()),
+          Query.lessThanEqual("$createdAt", endDate.toISOString()),
           Query.orderDesc("$createdAt"),
         ];
         break;
       default:
         break;
     }
+
     const loadOrders = async () => {
-      console.log("filter::", orderLimit, status, formatDate, queries);
+      console.log(
+        "filter:: startDate:",
+        startDate.toISOString(),
+        "endDate:",
+        endDate.toISOString()
+      );
+      console.log("queries::", queries);
       const result = await getAllItem(COLLECTION_IDS.orders, queries);
       console.log("orderList::", result);
       setOrders(result);

@@ -11,7 +11,7 @@ import {
 import { useRecoilState } from "recoil";
 import { userAtom } from "../states";
 import { Platform, ViewStyle } from "react-native";
-
+import UpdateStockScreen from "../screens/UpdateStockScreen";
 import PrinterScreen from "../screens/PrinterScreen";
 import StaffCheckoutScreen from "../screens/StaffCheckoutScreen";
 import WarehouseScreen from "../screens/WarehouseScreen";
@@ -45,6 +45,7 @@ type RootStackParamList = {
   WarehouseScreen: undefined;
   ReportScreen: undefined;
   ChatScreen: undefined;
+  UpdateStockScreen: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -93,6 +94,7 @@ const StackScreen: React.FC<StackScreenProps> = ({
           title: t("create_product"),
         }}
       />
+
       <Stack.Screen
         name="ManageProductScreen"
         component={ManageProductScreen}
@@ -176,6 +178,13 @@ const StackScreen: React.FC<StackScreenProps> = ({
         component={ChatScreen}
         options={{
           title: t("chat"),
+        }}
+      />
+      <Stack.Screen
+        name="UpdateStockScreen"
+        component={UpdateStockScreen}
+        options={{
+          title: t("update_stock"),
         }}
       />
     </Stack.Navigator>

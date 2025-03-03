@@ -30,8 +30,13 @@ import {
 import * as RootNavigation from "../../navigator/RootNavigation";
 import { useTranslation } from "react-i18next";
 import { useStorage, useDatabases, COLLECTION_IDS } from "../../hook/AppWrite";
-
-const ProductList = ({
+// Trong file ProductList.tsx
+interface ProductListProps {
+  screen: string;
+  editable: boolean;
+  category?: string;
+}
+const ProductList: React.FC<ProductListProps> = ({
   screen,
   editable,
   category = "all",

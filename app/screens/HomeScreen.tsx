@@ -1,4 +1,3 @@
-import React from "react";
 import { useTranslation } from "react-i18next";
 import {
   StyleSheet,
@@ -6,12 +5,30 @@ import {
   Dimensions,
   ViewStyle,
   TextStyle,
+  ScrollView,
 } from "react-native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { Layout, Text, Card, Icon } from "@ui-kitten/components";
 import { FloatingAction } from "react-native-floating-action";
 import { StyleService, useStyleSheet } from "@ui-kitten/components";
-
+import { useRecoilValue } from "recoil";
+// Sửa dòng import đầu tiên
+import React, { useEffect, useState } from "react";
+// Thêm import này
+import { allProductsAtom } from "../states";
+// Định nghĩa interface Product
+interface Product {
+  $id: string;
+  name: string;
+  photo?: string;
+  photoUrl?: string;
+  price: number;
+  cost?: number;
+  category?: string;
+  stock?: number;
+  minStock?: number;
+  description?: string;
+}
 // Định nghĩa kiểu cho navigation prop
 type RootStackParamList = {
   CreateOrderScreen: {
@@ -25,6 +42,7 @@ type RootStackParamList = {
   ManageOrderScreen: undefined;
   ManageProductScreen: undefined;
   ManageTableScreen: undefined;
+  WarehouseScreen: undefined;
 };
 
 // Định nghĩa kiểu cho navigation prop
@@ -38,6 +56,19 @@ type HomeScreenProps = {
 const HomeScreen = ({ navigation }: HomeScreenProps) => {
   const styles = useStyleSheet(styleSheet);
   const { t } = useTranslation();
+  const allProducts = useRecoilValue<Product[]>(allProductsAtom);
+  const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
+
+  useEffect(() => {
+    // Lọc ra các sản phẩm có tồn kho thấp
+    const productsWithLowStock = allProducts.filter(
+      (product) =>
+        product.stock !== undefined &&
+        product.minStock !== undefined &&
+        product.stock <= product.minStock
+    );
+    setLowStockProducts(productsWithLowStock);
+  }, [allProducts]);
   const allCategoryAtom = [
     {
       title: t("create_order"),
@@ -110,6 +141,36 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
             {renderCategoryCard(item)}
           </View>
         ))}
+        {/* Thêm phần cảnh báo tồn kho */}
+        {lowStockProducts.length > 0 && (
+          <Card style={styles.alertCard as ViewStyle}>
+            <Text category="h6" status="warning">
+              {t("stock_alerts")} ({lowStockProducts.length})
+            </Text>
+            <ScrollView style={styles.alertScroll as ViewStyle} horizontal>
+              {lowStockProducts.map((product) => (
+                <Card
+                  key={product.$id}
+                  style={styles.alertItem as ViewStyle}
+                  onPress={() => navigation.navigate("WarehouseScreen")}
+                >
+                  <Text category="s1">{product.name}</Text>
+                  <Text
+                    category="c1"
+                    status={(product.stock ?? 0) === 0 ? "danger" : "warning"}
+                  >
+                    {(product.stock ?? 0) === 0
+                      ? t("out_of_stock")
+                      : t("low_stock")}
+                  </Text>
+                  <Text category="c1">
+                    {t("stock")}: {product.stock ?? 0}
+                  </Text>
+                </Card>
+              ))}
+            </ScrollView>
+          </Card>
+        )}
       </View>
 
       <FloatingAction
@@ -177,6 +238,22 @@ const styleSheet = StyleService.create({
   cardTitle: {
     textAlign: "center",
     fontWeight: "600",
+  },
+
+  alertCard: {
+    width: "100%",
+    marginTop: 16,
+    marginBottom: 8,
+    padding: 12,
+  },
+  alertScroll: {
+    flexGrow: 0,
+    marginTop: 8,
+  },
+  alertItem: {
+    width: 150,
+    marginRight: 8,
+    padding: 8,
   },
 });
 

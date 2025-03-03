@@ -61,6 +61,7 @@ const TabNavigator: React.FC<TabNavigatorProps> = ({ onLoggedOut }) => {
         options={({ navigation }) => ({
           title: `${t("statistic")}`,
           headerTitleAlign: "left",
+          unmountOnBlur: true,
         })}
       />
       <Screen

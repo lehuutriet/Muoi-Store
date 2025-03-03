@@ -19,17 +19,6 @@ interface PrintService {
   characteristic_uuid: string;
 }
 
-interface Service {
-  device: Device;
-  uuid: string;
-  characteristics(): Promise<Characteristic[]>;
-}
-
-interface InstructionType {
-  SERVICE_UUID: string;
-  CHARACTERISTIC_UUID: string;
-}
-
 interface BLEContextType {
   manager: BleManager | null;
   device: React.RefObject<Device | null>;
@@ -46,21 +35,8 @@ interface BLEContextType {
 
 const BLEContext = createContext<BLEContextType | null>(null);
 
-// Khởi tạo BleManager ngoài component để tránh tạo nhiều instances
-let bleManagerInstance: BleManager | null = null;
-
-try {
-  // Chỉ khởi tạo BleManager trên thiết bị thật (Android/iOS)
-  if (Platform.OS === "android" || Platform.OS === "ios") {
-    bleManagerInstance = new BleManager();
-  }
-} catch (error) {
-  console.error("Không thể khởi tạo BleManager:", error);
-  bleManagerInstance = null;
-}
-
 export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
-  const manager = bleManagerInstance;
+  const [manager, setManager] = useState<BleManager | null>(null);
   const device = useRef<Device | null>(null);
   const { t } = useTranslation();
   const [bluetoothEnabled, setBluetoothEnabled] = useState(false);
@@ -70,36 +46,72 @@ export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
     useRecoilState<Device[]>(connectedDevice);
   const [isScanning, setIsScanning] = useRecoilState(deviceScan);
 
+  // Khởi tạo BleManager trong useEffect
+  useEffect(() => {
+    let bleManagerInstance: BleManager | null = null;
+    console.log("bleManagerInstance:", bleManagerInstance);
+
+    try {
+      // Chỉ khởi tạo trong môi trường di động thực
+      if (Platform.OS === "android" || Platform.OS === "ios") {
+        console.log("Đang khởi tạo BleManager với phiên bản 3.0.0...");
+        bleManagerInstance = new BleManager();
+        console.log("Khởi tạo bleManagerInstance:", bleManagerInstance);
+        setManager(bleManagerInstance);
+        console.log("Khởi tạo BleManager thành công");
+      } else {
+        console.log("Không khởi tạo BleManager (không phải thiết bị di động)");
+      }
+    } catch (error) {
+      console.error("Không thể khởi tạo BleManager:", error);
+    }
+
+    // Cleanup khi component unmount
+    return () => {
+      if (bleManagerInstance) {
+        try {
+          bleManagerInstance.destroy();
+        } catch (cleanupError) {
+          console.error("Lỗi khi dọn dẹp BleManager:", cleanupError);
+        }
+      }
+    };
+  }, []);
+
   const requestPermissions = async (cb: (granted: boolean) => void) => {
     if (Platform.OS === "android") {
       try {
-        let grants = await PermissionsAndroid.requestMultiple([
+        // Yêu cầu quyền cần thiết cho Android
+        const grants = await PermissionsAndroid.requestMultiple([
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+
+          ...(Platform.Version >= 31
+            ? [
+                PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+                PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+              ]
+            : []),
         ]);
-        const granted = Object.values(grants).every(
-          (grantStatus) => grantStatus === PermissionsAndroid.RESULTS.GRANTED
+
+        const allGranted = Object.values(grants).every(
+          (result) => result === PermissionsAndroid.RESULTS.GRANTED
         );
-        granted ? cb(true) : cb(false);
+
+        cb(allGranted);
       } catch (error) {
-        console.log("requestPermissions::", error);
+        console.error("Lỗi khi yêu cầu quyền:", error);
         cb(false);
       }
     } else {
+      // iOS không cần yêu cầu quyền cho BLE như Android
       cb(true);
     }
   };
 
   useEffect(() => {
-    if (!manager) {
-      console.log("BleManager không khả dụng");
-      return;
-    }
-
     requestPermissions((granted: boolean) => {
       if (granted) {
-        const subscription = manager.onStateChange((state) => {
+        const subscription = manager?.onStateChange((state) => {
           if (state === "PoweredOn") {
             setBluetoothEnabled(true);
           } else {
@@ -108,7 +120,7 @@ export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
         }, true);
 
         return () => {
-          subscription.remove();
+          subscription?.remove();
         };
       } else {
         showAlert("", t("permission_bluetooth_error"));
@@ -124,7 +136,7 @@ export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
         await getLastDevice();
       }
     })();
-  }, [bluetoothEnabled]);
+  }, [bluetoothEnabled, manager]);
 
   const showAlert = (title: string, message: string) =>
     Alert.alert(
@@ -201,45 +213,85 @@ export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const startScanning = () => {
+    console.log("Bắt đầu hàm startScanning");
+
     if (!manager) {
-      console.error("BleManager không khả dụng");
+      console.error("BleManager không khả dụng, không thể quét thiết bị");
       return;
     }
 
+    console.log("BleManager khả dụng, tiếp tục quét");
+    console.log("Đặt isScanning = true");
     setIsScanning(true);
+
+    console.log("Xóa danh sách thiết bị đã tìm thấy trước đó");
     setDevices([]);
 
     try {
+      console.log("Bắt đầu quét thiết bị với manager.startDeviceScan");
       manager.startDeviceScan(
         null,
-        null,
+        { allowDuplicates: false },
         (error: Error | null, scannedDevice: Device | null) => {
           if (error) {
-            console.error("Device scanning error:", error);
+            console.error("Lỗi quét thiết bị:", error);
+            console.log("Đặt isScanning = false do lỗi");
             setIsScanning(false);
             return;
           }
+
+          console.log(
+            "Đã quét thiết bị:",
+            scannedDevice
+              ? {
+                  id: scannedDevice.id,
+                  name: scannedDevice.name,
+                  rssi: scannedDevice.rssi,
+                }
+              : "null"
+          );
+
           if (scannedDevice && scannedDevice.name) {
+            console.log(
+              `Thiết bị có tên: ${scannedDevice.name}, id: ${scannedDevice.id}`
+            );
             setDevices((prevDevices) => {
               if (
                 !prevDevices.find((device) => device.id === scannedDevice.id)
               ) {
+                console.log(
+                  `Thêm thiết bị mới: ${scannedDevice.name} vào danh sách`
+                );
                 return [...prevDevices, scannedDevice];
               }
+              console.log(
+                `Thiết bị ${scannedDevice.name} đã tồn tại trong danh sách`
+              );
               return prevDevices;
             });
+          } else {
+            console.log("Thiết bị không có tên, bỏ qua");
           }
         }
       );
 
+      console.log("Đặt timeout 7 giây để dừng quét");
       setTimeout(() => {
+        console.log("Hết thời gian quét (7 giây), dừng quét");
         stopScanning();
+        console.log("Đặt isScanning = false");
         setIsScanning(false);
       }, 7000);
+
+      console.log("Đã cài đặt quét thành công");
     } catch (error) {
       console.error("Lỗi khi bắt đầu quét thiết bị:", error);
+      console.log("Chi tiết lỗi:", JSON.stringify(error, null, 2));
+      console.log("Đặt isScanning = false do exception");
       setIsScanning(false);
     }
+
+    console.log("Kết thúc hàm startScanning");
   };
 
   const stopScanning = () => {
@@ -260,7 +312,7 @@ export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
   const findWorkingCharacteristic = async (
     device: Device,
     prefixText?: string
-  ): Promise<InstructionType | null> => {
+  ): Promise<{ SERVICE_UUID: string; CHARACTERISTIC_UUID: string } | null> => {
     if (!manager) return null;
 
     try {
@@ -288,7 +340,7 @@ export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
             return { SERVICE_UUID, CHARACTERISTIC_UUID };
           } catch (error) {
             console.warn(
-              `Failed to write to characteristic: ${CHARACTERISTIC_UUID} of ${SERVICE_UUID}`
+              `Không thể ghi vào đặc tính: ${CHARACTERISTIC_UUID} của dịch vụ ${SERVICE_UUID}`
             );
           }
         }
@@ -328,11 +380,11 @@ export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
             await setLastDevice(deviceId, SERVICE_UUID, CHARACTERISTIC_UUID);
             resolve(true);
           } else {
-            console.error("No suitable service and characteristic found");
+            console.error("Không tìm thấy dịch vụ và đặc tính phù hợp");
             resolve(false);
           }
         } catch (error) {
-          console.error("Failed to connect to device:", error);
+          console.error("Không thể kết nối với thiết bị:", error);
           resolve(false);
         }
       } else {
@@ -360,7 +412,7 @@ export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
           );
           resolve(true);
         } catch (error) {
-          console.error("Failed to write to device:", error);
+          console.error("Không thể ghi vào thiết bị:", error);
           resolve(false);
         }
       } else {
@@ -376,30 +428,19 @@ export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       await AsyncStorage.removeItem("selectedPrinterDeviceId");
       await AsyncStorage.removeItem("selectedPrinterServiceUUID");
+      await AsyncStorage.removeItem("selectedPrinterCharacteristicUUID");
       device.current = null;
       setConnetedDevice([]);
       await manager.cancelDeviceConnection(deviceId);
-      await reloadBluetooth();
     } catch (error) {
-      console.error("Failed to disconnect from device:", error);
+      console.error("Không thể ngắt kết nối khỏi thiết bị:", error);
     }
   };
 
-  const reloadBluetooth = async (): Promise<void> => {
-    if (!manager) return;
-
-    try {
-      await manager.disable();
-      await manager.enable();
-    } catch (error) {
-      console.error("Failed to reload bluetooth:", error);
-    }
-  };
-
-  // Cung cấp mock implementations nếu manager không khả dụng
+  // Cung cấp giá trị mặc định khi manager không khả dụng
   const mockFunctions = {
-    startScanning: () => console.log("Mock scanning started"),
-    stopScanning: () => console.log("Mock scanning stopped"),
+    startScanning: () => console.log("Mô phỏng: Bắt đầu quét"),
+    stopScanning: () => console.log("Mô phỏng: Dừng quét"),
     selectDevice: async () => false,
     disconnectFromDevice: async () => {},
     printContent: async () => false,
@@ -431,7 +472,7 @@ export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
 export const useBLE = () => {
   const context = useContext(BLEContext);
   if (!context) {
-    throw new Error("useBLE must be used within a BLEProvider");
+    throw new Error("useBLE phải được sử dụng trong BLEProvider");
   }
   return context;
 };

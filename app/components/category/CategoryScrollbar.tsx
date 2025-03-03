@@ -5,7 +5,11 @@ import { useTranslation } from "react-i18next";
 import { useRecoilState } from "recoil";
 import { allCategoryAtom } from "../../states";
 
-const CategoryScrollbar = ({
+interface CategoryScrollbarProps {
+  selectedCategory: string;
+  setSelectedCategory: (category: string) => void;
+}
+const CategoryScrollbar: React.FC<CategoryScrollbarProps> = ({
   selectedCategory,
   setSelectedCategory,
 }): React.ReactElement => {

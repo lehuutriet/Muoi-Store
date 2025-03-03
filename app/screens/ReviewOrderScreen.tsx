@@ -85,7 +85,7 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
   const styles = useStyleSheet(styleSheet);
 
   const { t } = useTranslation();
-  const { createItem, updateItem } = useDatabases();
+  const { createItem, updateItem, getSingleItem } = useDatabases();
   const [waiting, setWaiting] = useState(false);
 
   const [order, setOrder] = useRecoilState(currentOrderAtom);
@@ -203,7 +203,9 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
         });
 
         const data = {
-          order: orderStringArray, // Mảng chuỗi thay vì một chuỗi duy nhất
+          userId: userInfo.id,
+          pushToken: userInfo.PUSH_TOKEN,
+          order: orderStringArray,
           status: orderStatus,
           note: order.note,
           table:
@@ -212,8 +214,7 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
               : null,
           subtract: order.subtract,
           discount: order.discount,
-          date: order.date.toISOString(), // Giữ lại trường date là đủ
-          // formattedDate: order.date.toLocaleString("en-GB"), // Xóa hoặc comment dòng này
+          date: order.date.toISOString(),
           total: finalPrice,
         };
 
@@ -227,6 +228,35 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
         } else {
           console.log("Tạo đơn hàng mới");
           result = await createItem(COLLECTION_IDS.orders, data);
+        }
+
+        // Nếu đơn hàng là paid (đã thanh toán), cập nhật số lượng tồn kho
+        if (orderStatus === "cash" || orderStatus === "transfer") {
+          // Cập nhật số lượng tồn kho cho từng sản phẩm
+          for (const item of order.order) {
+            const product = await getSingleItem(
+              COLLECTION_IDS.products,
+              item.$id
+            );
+            if (product) {
+              const currentStock = product.stock || 0;
+              const newStock = Math.max(0, currentStock - item.count);
+
+              await updateItem(COLLECTION_IDS.products, item.$id, {
+                stock: newStock,
+              });
+
+              // Kiểm tra nếu tồn kho thấp hơn ngưỡng, thông báo
+              if (newStock <= (product.minStock || 0)) {
+                // Hiển thị thông báo tồn kho thấp (có thể thêm thông báo push sau này)
+                Alert.alert(
+                  t("stock_alert"),
+                  t("low_stock_message").replace("{product}", product.name),
+                  [{ text: "OK" }]
+                );
+              }
+            }
+          }
         }
 
         console.log("Kết quả lưu đơn hàng:", result);

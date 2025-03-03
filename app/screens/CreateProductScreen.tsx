@@ -59,10 +59,11 @@ type RootStackParamList = {
       cost?: number;
       description?: string;
       category?: string;
+      stock?: number; // Thêm trường này
+      minStock?: number; // Thêm trường này
     };
   };
 };
-
 type CreateProductScreenRouteProp = RouteProp<
   RootStackParamList,
   "CreateProductScreen"
@@ -102,13 +103,26 @@ const CreateProductScreen = ({
     $id: string;
     name: string;
   }
-
+  interface Product {
+    $id: string;
+    name: string;
+    photo: string;
+    photoUrl: string;
+    price: number;
+    cost: number;
+    category: string;
+    stock: number; // Thêm trường này
+    minStock: number; // Thêm trường này
+    description: string;
+  }
   const [categories] = useRecoilState<Category[]>(allCategoryAtom);
   const [photoID, setPhotoID] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState<string | null>(null);
   const [cost, setCost] = useState<string | null>(null);
+  const [stock, setStock] = useState<string | null>(null);
+  const [minStock, setMinStock] = useState<string | null>(null);
   const [selectedCategoryIndex, setSelectedCategoryIndex] =
     React.useState<IndexPath>(new IndexPath(0));
   const { set } = useRecoilCallback(
@@ -174,7 +188,9 @@ const CreateProductScreen = ({
       if (item.description) {
         setDescription(item.description);
       }
-
+      // Sử dụng toán tử nullish coalescing
+      setStock((item.stock ?? 0).toString());
+      setMinStock((item.minStock ?? 0).toString());
       if (item.category) {
         let index = categories.findIndex(
           (category) => category.$id === item.category
@@ -290,6 +306,8 @@ const CreateProductScreen = ({
         name: name.trim(),
         price: parseFloat((price ?? "0").replace(/\D/g, "")),
         cost: parseFloat((cost ?? "0").replace(/\D/g, "")),
+        stock: parseInt((stock ?? "0").replace(/\D/g, "")), // Thêm trường stock
+        minStock: parseInt((minStock ?? "0").replace(/\D/g, "")), // Thêm trường minStock
         category:
           categories.length > 0 && selectedCategoryIndex.row > 0
             ? categories[selectedCategoryIndex.row - 1].$id
@@ -456,7 +474,7 @@ const CreateProductScreen = ({
           onChangeText={(nextValue) => setDescription(nextValue)}
         />
         <Layout level="1" style={styles.price as ViewStyle}>
-          {/* product price */}
+          {/* Hàng 1: price và cost */}
           <Input
             {...useMaskedInputProps({
               value: price || "",
@@ -474,10 +492,7 @@ const CreateProductScreen = ({
             label={t("price")}
             placeholder="0.000"
             caption={() => (required && !price ? requiredText() : <></>)}
-            // accessoryRight={renderIcon}
-            // secureTextEntry={secureTextEntry}
           />
-          {/* product cost */}
           <Input
             {...useMaskedInputProps({
               value: cost || "",
@@ -491,10 +506,43 @@ const CreateProductScreen = ({
             inputMode="numeric"
             label={t("cost")}
             placeholder="0.000"
-            // caption={() => (required && !cost ? requiredText() : <></>)}
-            // accessoryRight={renderIcon}
-            // secureTextEntry={secureTextEntry}
             onChangeText={(nextValue) => setCost(nextValue)}
+          />
+        </Layout>
+
+        {/* Thêm một Layout mới cho stock và minStock */}
+        <Layout level="1" style={styles.price as ViewStyle}>
+          <Input
+            {...useMaskedInputProps({
+              value: stock || "",
+              onChangeText: (masked, unmasked) => setStock(unmasked),
+              mask: vndMask,
+            })}
+            style={[
+              styles.input as TextStyle,
+              {
+                paddingRight: 10,
+                width: Dimensions.get("screen").width / 2 - 10,
+              },
+            ]}
+            inputMode="numeric"
+            label={t("stock")}
+            placeholder="0"
+            caption={() => (required && !stock ? requiredText() : <></>)}
+          />
+          <Input
+            {...useMaskedInputProps({
+              value: minStock || "",
+              onChangeText: (masked, unmasked) => setMinStock(unmasked),
+              mask: vndMask,
+            })}
+            style={[
+              styles.input as TextStyle,
+              { width: Dimensions.get("screen").width / 2 - 10 },
+            ]}
+            inputMode="numeric"
+            label={t("min_stock")}
+            placeholder="0"
           />
         </Layout>
         {/* product categories */}
