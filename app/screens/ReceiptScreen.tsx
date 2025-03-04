@@ -62,6 +62,7 @@ interface ReceiptData {
     price: number;
     count: number;
   }>;
+  location?: string;
   subtract: number;
   discount: number;
 }
@@ -487,7 +488,15 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
                   {userInfo.STORE_NAME}
                 </Text>
                 <Text style={{ textAlign: "center", fontSize: 12 }}>
-                  {data.date ? data.date : ""}
+                  {data.date
+                    ? new Date(data.date).toLocaleString("vi-VN", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : ""}
                 </Text>
                 <Text style={{ textAlign: "center", fontSize: 12 }}>
                   {(data.table ? t("table_num") + ": " + data.table : "") +
@@ -576,6 +585,7 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
                 <></>
               )}
             </View>
+
             <Divider
               style={{
                 borderStyle: "dashed",
@@ -590,6 +600,7 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
                 flexDirection: "row",
                 justifyContent: "space-between",
                 paddingTop: 10,
+                paddingBottom: 10,
                 // width: Dimensions.get("window").width - 32,
                 // alignItems:"center",
               }}
@@ -600,6 +611,26 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
                   style: "currency",
                   currency: "VND",
                 }).format(totalPrice)}{" "}
+              </Text>
+            </View>
+            <View
+              style={{
+                display: "flex",
+                flexDirection: "row",
+                justifyContent: "space-between",
+                paddingTop: 5,
+              }}
+            >
+              <Text>{t("order_location")}</Text>
+              <Text>
+                {data.location
+                  ? data.location === "dine-in"
+                    ? t("dine_in")
+                    : data.location === "take-away"
+                    ? t("take_away")
+                    : t("delivery")
+                  : t("dine_in")}{" "}
+                {/* Mặc định là tại quán */}
               </Text>
             </View>
             <View
@@ -642,12 +673,14 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
                 )}
               </Text>
             </View>
+
             <View
               style={{
                 display: "flex",
                 flexDirection: "row",
                 justifyContent: "space-between",
                 paddingTop: 10,
+                paddingBottom: 10,
                 // width: Dimensions.get("window").width - 32,
                 // alignItems:"center",
               }}
@@ -660,20 +693,7 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
                 }).format(finalPrice)}
               </Text>
             </View>
-            <View
-              style={{
-                display: "flex",
-                flexDirection: "row",
-                justifyContent: "space-between",
-                paddingTop: 10,
-                paddingBottom: 10,
-                // width: Dimensions.get("window").width - 32,
-                // alignItems:"center",
-              }}
-            >
-              <Text>{t("status")}</Text>
-              <Text>{data.status === "unpaid" ? t("unpaid") : t("paid")}</Text>
-            </View>
+
             <Divider
               style={{
                 borderStyle: "dashed",
@@ -717,7 +737,11 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
                     color: theme["color-primary-600"],
                   }}
                 >
-                  {t("payment_method")}
+                  {data.status === "cash"
+                    ? t("cash")
+                    : data.status === "transfer"
+                    ? t("transfer")
+                    : t("payment_method")}
                 </Text>
               </View>
 

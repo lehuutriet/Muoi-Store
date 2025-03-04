@@ -72,6 +72,7 @@ interface Order {
   $id: string;
   note: string;
   table: string;
+  location?: string; // Thêm trường location
   discount: number;
   subtract: number;
   total: number;

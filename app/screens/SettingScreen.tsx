@@ -78,9 +78,9 @@ const SettingScreen: React.FC<SettingScreenProps> = ({ onLoggedOut }) => {
           onPress={() => RootNavigation.navigate("PrinterScreen")}
         />
         <SettingItem
-          icon="shopping-bag"
-          title={t("inventory_management")}
-          onPress={() => RootNavigation.navigate("InventoryScreen")}
+          icon="archive"
+          title={t("warehouse_management")}
+          onPress={() => RootNavigation.navigate("WarehouseScreen")}
         />
       </Layout>
 

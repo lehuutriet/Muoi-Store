@@ -15,7 +15,7 @@ import { useTranslation } from "react-i18next";
 import { useDatabases, COLLECTION_IDS } from "../hook/AppWrite";
 import { CategoryScrollbar } from "../components/category";
 import { useRecoilValue } from "recoil";
-import { allProductsAtom } from "../states";
+import { allCategoryAtom, allProductsAtom } from "../states";
 
 // Định nghĩa kiểu Product
 interface Product {
@@ -42,17 +42,29 @@ const WarehouseScreen: React.FC<WarehouseScreenProps> = ({ navigation }) => {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const allProducts = useRecoilValue<Product[]>(allProductsAtom);
   const [products, setProducts] = useState<Product[]>([]);
-
+  // Tìm tên danh mục từ ID
+  const categories = useRecoilValue(allCategoryAtom);
   useEffect(() => {
+    // Thêm tên danh mục vào mỗi sản phẩm
+    const productsWithCategoryName = allProducts.map((product) => {
+      const category = categories.find((cat) => cat.$id === product.category);
+      return {
+        ...product,
+        categoryName: category ? category.name : "-",
+      };
+    });
+
     // Lọc sản phẩm theo danh mục được chọn
     if (selectedCategory === "all") {
-      setProducts(allProducts);
+      setProducts(productsWithCategoryName);
     } else {
       setProducts(
-        allProducts.filter((product) => product.category === selectedCategory)
+        productsWithCategoryName.filter(
+          (product) => product.category === selectedCategory
+        )
       );
     }
-  }, [selectedCategory, allProducts]);
+  }, [selectedCategory, allProducts, categories]);
 
   const renderStockStatus = (stock: number = 0, minStock: number = 0) => {
     if (stock === 0) {
@@ -97,7 +109,7 @@ const WarehouseScreen: React.FC<WarehouseScreenProps> = ({ navigation }) => {
         <View style={styles.productInfo as ViewStyle}>
           <Text category="h6">{item.name}</Text>
           <Text appearance="hint">
-            {t("category")}: {item.categoryName || "-"}
+            {t("category")}: {item.categoryName ?? "-"}
           </Text>
         </View>
         <View style={styles.stockInfo as ViewStyle}>

@@ -39,6 +39,7 @@ interface Order {
   order: string[];
   status: string;
   $createdAt: string;
+  location?: string;
   total: number;
 }
 
@@ -60,6 +61,13 @@ interface PieChartData {
   color?: string;
 }
 
+interface Product {
+  $id: string;
+  name: string;
+  price: number;
+  cost?: number;
+  category?: string;
+}
 const StatisticScreen = () => {
   const styles = useStyleSheet(styleSheet);
   const theme = useTheme();
@@ -79,11 +87,28 @@ const StatisticScreen = () => {
   const [revenueData, setRevenueData] = useState<LineChartData[]>([]);
   const [topProducts, setTopProducts] = useState<PieChartData[]>([]);
   const [hourlyData, setHourlyData] = useState<BarChartData[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [totalProfit, setTotalProfit] = useState(0);
+  const [profitData, setProfitData] = useState<LineChartData[]>([]);
 
   // Khoảng thời gian thống kê: ngày, tuần, tháng
   const timeFrames = ["day", "week", "month"];
   const [timeFrame, setTimeFrame] = useState(timeFrames[0]);
+  // Dữ liệu doanh thu theo khung giờ
+  const [morningRevenue, setMorningRevenue] = useState(0); // 6h-12h
+  const [noonRevenue, setNoonRevenue] = useState(0); // 12h-18h
+  const [eveningRevenue, setEveningRevenue] = useState(0); // 18h-22h
 
+  // Dữ liệu doanh thu theo khu vực
+  const [dineInRevenue, setDineInRevenue] = useState(0);
+  const [takeAwayRevenue, setTakeAwayRevenue] = useState(0);
+  const [deliveryRevenue, setDeliveryRevenue] = useState(0);
+
+  const [avgOrderValue, setAvgOrderValue] = useState(0);
+  const [maxOrderValue, setMaxOrderValue] = useState(0);
+  const [minOrderValue, setMinOrderValue] = useState(0);
+  // Thêm doanh thu năm
+  const [yearlyRevenue, setYearlyRevenue] = useState(0);
   useFocusEffect(
     React.useCallback(() => {
       console.log("StatisticScreen được focus - tải lại dữ liệu");
@@ -111,13 +136,11 @@ const StatisticScreen = () => {
       if (timeFrame === "day") {
         startDate.setHours(0, 0, 0, 0);
       } else if (timeFrame === "week") {
-        // Lấy từ đầu tuần (thứ 2) đến hiện tại
         const day = today.getDay();
-        const diff = day === 0 ? 6 : day - 1; // Tính số ngày từ thứ hai
+        const diff = day === 0 ? 6 : day - 1;
         startDate.setDate(today.getDate() - diff);
         startDate.setHours(0, 0, 0, 0);
       } else if (timeFrame === "month") {
-        // Lấy từ đầu tháng đến hiện tại
         startDate.setDate(1);
         startDate.setHours(0, 0, 0, 0);
       }
@@ -144,7 +167,19 @@ const StatisticScreen = () => {
         Query.greaterThan("$createdAt", todayStart.toISOString()),
       ];
 
+      // Thêm truy vấn cho doanh thu năm
+      const yearStart = new Date();
+      yearStart.setMonth(0, 1);
+      yearStart.setHours(0, 0, 0, 0);
+      const yearQuery = [
+        Query.equal("status", ["cash", "transfer"]),
+        Query.greaterThan("$createdAt", yearStart.toISOString()),
+      ];
+
       // Lấy dữ liệu từ database
+      const productData = await getAllItem(COLLECTION_IDS.products);
+      setAllProducts(productData);
+
       const paidOrdersData = await getAllItem(COLLECTION_IDS.orders, paidQuery);
       const unpaidOrdersData = await getAllItem(
         COLLECTION_IDS.orders,
@@ -154,6 +189,7 @@ const StatisticScreen = () => {
         COLLECTION_IDS.orders,
         todayQuery
       );
+      const yearOrdersData = await getAllItem(COLLECTION_IDS.orders, yearQuery);
 
       // Tính tổng doanh thu
       let total = 0;
@@ -161,10 +197,74 @@ const StatisticScreen = () => {
         total += Number(order.total) || 0;
       });
 
+      // Tính giá trị trung bình, cao nhất, thấp nhất - ĐẶT SAU KHI ĐÃ CÓ paidOrdersData và total
+      if (paidOrdersData.length > 0) {
+        // Giá trị trung bình
+        const avgValue = Math.round(total / paidOrdersData.length);
+        setAvgOrderValue(avgValue);
+
+        // Tìm giá trị cao nhất và thấp nhất
+        let max = 0;
+        let min = Number.MAX_VALUE;
+
+        paidOrdersData.forEach((order: Order) => {
+          const orderValue = Number(order.total) || 0;
+          if (orderValue > max) max = orderValue;
+          if (orderValue < min) min = orderValue;
+        });
+
+        setMaxOrderValue(max);
+        setMinOrderValue(min > 0 && min < Number.MAX_VALUE ? min : 0);
+      } else {
+        setAvgOrderValue(0);
+        setMaxOrderValue(0);
+        setMinOrderValue(0);
+      }
+
       // Tính doanh thu hôm nay
       let todayTotal = 0;
       todayOrdersData.forEach((order: Order) => {
         todayTotal += Number(order.total) || 0;
+      });
+
+      // Tính doanh thu theo khung giờ
+      let morning = 0;
+      let noon = 0;
+      let evening = 0;
+
+      // Tính doanh thu theo khu vực (giả sử có trường location trong đơn hàng)
+      let dineIn = 0;
+      let takeAway = 0;
+      let delivery = 0;
+
+      // Tính doanh thu năm
+      let yearTotal = 0;
+      yearOrdersData.forEach((order: Order) => {
+        yearTotal += Number(order.total) || 0;
+      });
+
+      paidOrdersData.forEach((order: Order) => {
+        const orderDate = new Date(order.$createdAt);
+        const hour = orderDate.getHours();
+
+        // Phân loại theo khung giờ
+        if (hour >= 6 && hour < 12) {
+          morning += Number(order.total) || 0;
+        } else if (hour >= 12 && hour < 18) {
+          noon += Number(order.total) || 0;
+        } else if (hour >= 18 && hour < 22) {
+          evening += Number(order.total) || 0;
+        }
+
+        // Phân loại theo khu vực
+        const location = order.location || "dine-in"; // Mặc định là tại quán
+        if (location === "dine-in") {
+          dineIn += Number(order.total) || 0;
+        } else if (location === "take-away") {
+          takeAway += Number(order.total) || 0;
+        } else if (location === "delivery") {
+          delivery += Number(order.total) || 0;
+        }
       });
 
       // Cập nhật state
@@ -173,6 +273,13 @@ const StatisticScreen = () => {
       setPaidOrders(paidOrdersData.length);
       setUnpaidOrders(unpaidOrdersData.length);
       setTotalOrders(paidOrdersData.length + unpaidOrdersData.length);
+      setMorningRevenue(morning);
+      setNoonRevenue(noon);
+      setEveningRevenue(evening);
+      setDineInRevenue(dineIn);
+      setTakeAwayRevenue(takeAway);
+      setDeliveryRevenue(delivery);
+      setYearlyRevenue(yearTotal);
 
       // Tạo dữ liệu cho biểu đồ doanh thu
       const revenueByDate = processRevenueByDate(paidOrdersData, timeFrame);
@@ -185,17 +292,59 @@ const StatisticScreen = () => {
       // Tạo dữ liệu về thời điểm bán hàng cao điểm
       const hourlyDataChart = processHourlyData(paidOrdersData);
       setHourlyData(hourlyDataChart);
+
+      // Tính chi phí và lợi nhuận từ các đơn hàng đã thanh toán
+      let totalCost = 0;
+      let profit = 0;
+
+      paidOrdersData.forEach((order: Order) => {
+        if (order.order && Array.isArray(order.order)) {
+          order.order.forEach((itemString) => {
+            try {
+              const item: OrderItem =
+                typeof itemString === "string"
+                  ? JSON.parse(itemString)
+                  : (itemString as unknown as OrderItem);
+
+              // Lấy thông tin chi phí từ sản phẩm
+              const product = productData.find((p) => p.$id === item.$id);
+              const cost = product?.cost || 0;
+
+              // Tính chi phí và lợi nhuận
+              const itemCost = cost * (item.count || 1);
+              const itemRevenue = (item.price || 0) * (item.count || 1);
+              const itemProfit = itemRevenue - itemCost;
+
+              totalCost += itemCost;
+              profit += itemProfit;
+            } catch (e) {
+              console.error("Lỗi khi xử lý item trong đơn hàng:", e);
+            }
+          });
+        }
+      });
+
+      // Cập nhật state lợi nhuận
+      setTotalProfit(profit);
+
+      // Cập nhật biểu đồ lợi nhuận
+      const profitDataChart = processRevenueByDate(
+        paidOrdersData,
+        timeFrame,
+        productData
+      );
+      setProfitData(profitDataChart);
     } catch (error) {
       console.error("Lỗi tải thống kê:", error);
     } finally {
       setLoading(false);
     }
   };
-
   // Hàm xử lý dữ liệu doanh thu theo ngày/tuần/tháng
   const processRevenueByDate = (
     orders: Order[],
-    timeFrame: string
+    timeFrame: string,
+    products: Product[] = []
   ): LineChartData[] => {
     let dateMap = new Map<string, number>();
 
@@ -401,7 +550,21 @@ const StatisticScreen = () => {
               </Text>
             </Card>
           </View>
-
+          <Card
+            style={
+              [styles.mainStatCard, styles.profitCard] as StyleProp<ViewStyle>
+            }
+          >
+            <Text category="label" style={styles.statLabel as TextStyle}>
+              {t("total_profit")}
+            </Text>
+            <Text category="h4" style={styles.statValue as TextStyle}>
+              {Intl.NumberFormat("vi-VN", {
+                style: "currency",
+                currency: "VND",
+              }).format(totalProfit)}
+            </Text>
+          </Card>
           <View style={styles.orderStats as ViewStyle}>
             <Card style={styles.totalOrderCard as ViewStyle}>
               <View style={styles.orderCardContent as ViewStyle}>
@@ -441,6 +604,58 @@ const StatisticScreen = () => {
             </View>
           </View>
 
+          {/* Thêm card giá trị đơn hàng */}
+          <View style={styles.orderDetails as ViewStyle}>
+            <Card style={styles.orderCard as ViewStyle}>
+              <Text category="label">{t("avg_order_value")}</Text>
+              <Text category="h6">
+                {Intl.NumberFormat("vi-VN", {
+                  style: "currency",
+                  currency: "VND",
+                }).format(avgOrderValue)}
+              </Text>
+            </Card>
+
+            <View style={styles.orderDetailsRow as ViewStyle}>
+              <Card
+                style={
+                  [
+                    styles.orderDetailCard,
+                    styles.maxCard,
+                  ] as StyleProp<ViewStyle>
+                }
+              >
+                <View style={styles.orderDetailContent as ViewStyle}>
+                  <Text category="label">{t("max_order")}</Text>
+                  <Text category="s1">
+                    {Intl.NumberFormat("vi-VN", {
+                      style: "currency",
+                      currency: "VND",
+                    }).format(maxOrderValue)}
+                  </Text>
+                </View>
+              </Card>
+
+              <Card
+                style={
+                  [
+                    styles.orderDetailCard,
+                    styles.minCard,
+                  ] as StyleProp<ViewStyle>
+                }
+              >
+                <View style={styles.orderDetailContent as ViewStyle}>
+                  <Text category="label">{t("min_order")}</Text>
+                  <Text category="s1">
+                    {Intl.NumberFormat("vi-VN", {
+                      style: "currency",
+                      currency: "VND",
+                    }).format(minOrderValue)}
+                  </Text>
+                </View>
+              </Card>
+            </View>
+          </View>
           {/* Biểu đồ doanh thu theo thời gian */}
           <Card style={styles.chartCard as ViewStyle}>
             <Text category="h6" style={styles.chartTitle as TextStyle}>
@@ -453,18 +668,19 @@ const StatisticScreen = () => {
             {revenueData.length > 0 ? (
               <View style={styles.chartContainer as ViewStyle}>
                 <LineChart
-                  data={revenueData}
-                  width={width - 80}
                   height={220}
+                  initialSpacing={20} // Tăng khoảng cách lề trái
+                  endSpacing={20} // Thêm khoảng cách lề phải
                   hideDataPoints={false}
-                  spacing={40}
                   color={theme["color-primary-500"]}
                   thickness={2}
                   startFillColor={theme["color-primary-100"]}
                   endFillColor={theme["color-primary-100"]}
                   startOpacity={0.4}
                   endOpacity={0.1}
-                  initialSpacing={10}
+                  data={revenueData}
+                  width={Math.max(width - 80, revenueData.length * 80)}
+                  spacing={40}
                   noOfSections={6}
                   yAxisTextStyle={{ color: theme["text-hint-color"] }}
                   rulesColor={theme["color-basic-400"]}
@@ -487,7 +703,6 @@ const StatisticScreen = () => {
               </Text>
             )}
           </Card>
-
           {/* Biểu đồ sản phẩm bán chạy */}
           <Card style={styles.chartCard as ViewStyle}>
             <Text category="h6" style={styles.chartTitle as TextStyle}>
@@ -540,7 +755,173 @@ const StatisticScreen = () => {
               </Text>
             )}
           </Card>
+          {/* Thêm vào trong scrollView sau các thống kê hiện tại */}
 
+          {/* Card Doanh thu theo khung giờ */}
+          <Card style={styles.chartCard as ViewStyle}>
+            <Text category="h6" style={styles.chartTitle as TextStyle}>
+              {t("revenue_by_time_segment")}
+            </Text>
+            <View style={styles.timeSegmentStats as ViewStyle}>
+              <View style={styles.timeSegment as ViewStyle}>
+                <Text category="label">{t("morning")} (6h-12h)</Text>
+                <Text category="s1">
+                  {Intl.NumberFormat("vi-VN", {
+                    style: "currency",
+                    currency: "VND",
+                  }).format(morningRevenue)}
+                </Text>
+              </View>
+              <View style={styles.timeSegment as ViewStyle}>
+                <Text category="label">{t("noon")} (12h-18h)</Text>
+                <Text category="s1">
+                  {Intl.NumberFormat("vi-VN", {
+                    style: "currency",
+                    currency: "VND",
+                  }).format(noonRevenue)}
+                </Text>
+              </View>
+              <View style={styles.timeSegment as ViewStyle}>
+                <Text category="label">{t("evening")} (18h-22h)</Text>
+                <Text category="s1">
+                  {Intl.NumberFormat("vi-VN", {
+                    style: "currency",
+                    currency: "VND",
+                  }).format(eveningRevenue)}
+                </Text>
+              </View>
+            </View>
+            {/* Thêm biểu đồ cột cho doanh thu theo khung giờ */}
+            <View style={styles.chartContainer as ViewStyle}>
+              <BarChart
+                data={[
+                  {
+                    value: morningRevenue,
+                    label: t("morning"),
+                    frontColor: theme["color-info-500"],
+                  },
+                  {
+                    value: noonRevenue,
+                    label: t("noon"),
+                    frontColor: theme["color-warning-500"],
+                  },
+                  {
+                    value: eveningRevenue,
+                    label: t("evening"),
+                    frontColor: theme["color-danger-500"],
+                  },
+                ]}
+                width={width - 80}
+                height={200}
+                spacing={50}
+                barWidth={40}
+                noOfSections={5}
+                barBorderRadius={4}
+                yAxisTextStyle={{ color: theme["text-hint-color"] }}
+                showVerticalLines
+                verticalLinesColor={theme["color-basic-400"]}
+                formatYLabel={(value: any) => `${Math.round(value / 1000)}k`}
+              />
+            </View>
+          </Card>
+
+          {/* Card Doanh thu theo khu vực */}
+          <Card style={styles.chartCard as ViewStyle}>
+            <Text category="h6" style={styles.chartTitle as TextStyle}>
+              {t("revenue_by_location")}
+            </Text>
+            {dineInRevenue > 0 || takeAwayRevenue > 0 || deliveryRevenue > 0 ? (
+              <View style={styles.pieChartContainer as ViewStyle}>
+                <PieChart
+                  data={[
+                    {
+                      value: dineInRevenue,
+                      text: t("dine_in"),
+                      color: theme["color-primary-500"],
+                    },
+                    {
+                      value: takeAwayRevenue,
+                      text: t("take_away"),
+                      color: theme["color-success-500"],
+                    },
+                    {
+                      value: deliveryRevenue,
+                      text: t("delivery"),
+                      color: theme["color-info-500"],
+                    },
+                  ]}
+                  donut
+                  textColor={theme["text-basic-color"]}
+                  textSize={10}
+                  showGradient={true}
+                  sectionAutoFocus
+                  radius={90}
+                  innerRadius={30}
+                  innerCircleColor={theme["background-basic-color-1"]}
+                  centerLabelComponent={() => {
+                    return (
+                      <View style={styles.pieCenterLabel as ViewStyle}>
+                        <Text style={styles.pieCenterText as TextStyle}>
+                          {t("location")}
+                        </Text>
+                      </View>
+                    );
+                  }}
+                />
+                <View style={styles.legendContainer as ViewStyle}>
+                  <View style={styles.legendItem as ViewStyle}>
+                    <View
+                      style={[
+                        styles.legendColor as ViewStyle,
+                        { backgroundColor: theme["color-primary-500"] },
+                      ]}
+                    />
+                    <Text style={styles.legendText as TextStyle}>
+                      {t("dine_in")}:{" "}
+                      {Intl.NumberFormat("vi-VN", {
+                        style: "currency",
+                        currency: "VND",
+                      }).format(dineInRevenue)}
+                    </Text>
+                  </View>
+                  <View style={styles.legendItem as ViewStyle}>
+                    <View
+                      style={[
+                        styles.legendColor as ViewStyle,
+                        { backgroundColor: theme["color-success-500"] },
+                      ]}
+                    />
+                    <Text style={styles.legendText as TextStyle}>
+                      {t("take_away")}:{" "}
+                      {Intl.NumberFormat("vi-VN", {
+                        style: "currency",
+                        currency: "VND",
+                      }).format(takeAwayRevenue)}
+                    </Text>
+                  </View>
+                  <View style={styles.legendItem as ViewStyle}>
+                    <View
+                      style={[
+                        styles.legendColor as ViewStyle,
+                        { backgroundColor: theme["color-info-500"] },
+                      ]}
+                    />
+                    <Text style={styles.legendText as TextStyle}>
+                      {t("delivery")}:{" "}
+                      {Intl.NumberFormat("vi-VN", {
+                        style: "currency",
+                        currency: "VND",
+                      }).format(deliveryRevenue)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ) : (
+              <Text style={styles.noDataText as TextStyle}>
+                {t("no_data_available")}
+              </Text>
+            )}
+          </Card>
           {/* Biểu đồ thời điểm bán hàng cao điểm */}
           <Card style={styles.chartCard as ViewStyle}>
             <Text category="h6" style={styles.chartTitle as TextStyle}>
@@ -581,6 +962,9 @@ const StatisticScreen = () => {
 };
 
 const styleSheet = StyleService.create({
+  profitCard: {
+    backgroundColor: "color-success-100",
+  },
   mainLayout: {
     flex: 1,
     backgroundColor: "background-basic-color-1",
@@ -600,6 +984,20 @@ const styleSheet = StyleService.create({
   scrollContainer: {
     flex: 1,
     padding: 16,
+  },
+  orderDetails: {
+    marginVertical: 16,
+  },
+  orderCard: {
+    marginBottom: 16,
+    borderRadius: 16,
+    backgroundColor: "color-info-100",
+  },
+  maxCard: {
+    backgroundColor: "color-primary-100",
+  },
+  minCard: {
+    backgroundColor: "color-basic-200",
   },
   mainStats: {
     flexDirection: "row",
@@ -628,6 +1026,23 @@ const styleSheet = StyleService.create({
   },
   orderStats: {
     marginTop: 8,
+  },
+  yearlyCard: {
+    backgroundColor: "color-info-100",
+    marginTop: 16,
+  },
+  timeSegmentStats: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 16,
+    padding: 8,
+  },
+  timeSegment: {
+    alignItems: "center",
+    flex: 1,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "background-basic-color-2",
   },
   totalOrderCard: {
     marginBottom: 16,

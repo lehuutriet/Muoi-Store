@@ -8,11 +8,10 @@ import {
 
 import { currentOrderAtom } from "./orderState";
 
-export const allProductsAtom = atom({
-  key: "allProducts",
+export const allProductsAtom = atom<any[]>({
+  key: "allProductsAtom",
   default: [],
 });
-
 export const productIdsAtom = atom<string[]>({
   key: "productIds",
   default: [],

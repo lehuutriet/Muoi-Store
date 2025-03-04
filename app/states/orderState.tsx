@@ -20,6 +20,7 @@ export interface CurrentOrderType {
   discount: number;
   subtract: number;
   total: number;
+  location?: string;
   date: Date;
   order: OrderItem[];
 }

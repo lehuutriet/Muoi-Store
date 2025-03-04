@@ -40,8 +40,14 @@ import { WaitingModal } from "../components/common";
 import { createNumberMask, useMaskedInputProps } from "react-native-mask-input";
 import { useTranslation } from "react-i18next";
 import { i18nCalendar as i18n } from "../i18/i18n.config";
-import { useRecoilState, useRecoilValue } from "recoil";
-import { allTablesAtom, currentOrderAtom, userAtom } from "../states";
+import { useRecoilCallback, useRecoilState, useRecoilValue } from "recoil";
+import {
+  allProductsAtom,
+  allTablesAtom,
+  currentOrderAtom,
+  productAtomFamily,
+  userAtom,
+} from "../states";
 import { useDatabases, COLLECTION_IDS } from "../hook/AppWrite";
 import * as RootNavigation from "../navigator/RootNavigation";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -85,7 +91,7 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
   const styles = useStyleSheet(styleSheet);
 
   const { t } = useTranslation();
-  const { createItem, updateItem, getSingleItem } = useDatabases();
+  const { createItem, updateItem, getSingleItem, getAllItem } = useDatabases();
   const [waiting, setWaiting] = useState(false);
 
   const [order, setOrder] = useRecoilState(currentOrderAtom);
@@ -97,14 +103,28 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
     new IndexPath(0)
   );
 
+  // Trong phần khai báo state
+  const [selectedLocationIndex, setSelectedLocationIndex] =
+    React.useState<IndexPath>(
+      new IndexPath(0) // Mặc định là 'dine-in'
+    );
+
+  // Trong useEffect khởi tạo
   useEffect(() => {
     console.log("userInfo::", userInfo);
 
     if (order && order.$id) {
       setOrder({ ...order, $id: order.$id });
-      let index = tables.findIndex((table) => table.name === order.table);
-      index = index >= 0 ? index + 1 : 0;
-      setSelectedTableIndex(new IndexPath(index));
+      let tableIndex = tables.findIndex((table) => table.name === order.table);
+      tableIndex = tableIndex >= 0 ? tableIndex + 1 : 0;
+      setSelectedTableIndex(new IndexPath(tableIndex));
+
+      // Thêm phần khởi tạo vị trí
+      const locationTypes = ["dine-in", "take-away", "delivery"];
+      const locationIndex = locationTypes.indexOf(order.location || "dine-in");
+      setSelectedLocationIndex(
+        new IndexPath(locationIndex >= 0 ? locationIndex : 0)
+      );
     }
   }, []);
 
@@ -181,6 +201,25 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
         cancelable: true,
       }
     );
+  const refreshProductList = useRecoilCallback(
+    ({ set }) =>
+      async () => {
+        try {
+          const productData = await getAllItem(COLLECTION_IDS.products);
+
+          // Cập nhật atom chứa tất cả sản phẩm
+          set(allProductsAtom, productData);
+
+          // Cập nhật từng sản phẩm trong atom family
+          for (const product of productData) {
+            set(productAtomFamily(product.$id), product);
+          }
+        } catch (error) {
+          console.error("Error refreshing product list:", error);
+        }
+      },
+    []
+  );
 
   const saveOrder = async (orderStatus = "unpaid") => {
     console.log("saveOrder được gọi với status:", orderStatus);
@@ -213,6 +252,7 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
               ? tables[selectedTableIndex.row - 1].name
               : null,
           subtract: order.subtract,
+          location: order.location || "dine-in",
           discount: order.discount,
           date: order.date.toISOString(),
           total: finalPrice,
@@ -258,7 +298,7 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
             }
           }
         }
-
+        await refreshProductList();
         console.log("Kết quả lưu đơn hàng:", result);
 
         if (result && result.$id) {
@@ -509,6 +549,35 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
             ) : (
               <></>
             )}
+          </Select>
+          {/* Sau phần Select bàn và trước phần nhập ghi chú */}
+          <Select
+            style={{ padding: 10 } as ViewStyle}
+            label={t("order_location")}
+            placeholder={t("choose_location")}
+            value={
+              order.location
+                ? order.location === "dine-in"
+                  ? t("dine_in")
+                  : order.location === "take-away"
+                  ? t("take_away")
+                  : t("delivery")
+                : t("choose_location")
+            }
+            selectedIndex={selectedLocationIndex}
+            onSelect={(index: IndexPath | IndexPath[]) => {
+              if (index instanceof IndexPath) {
+                setSelectedLocationIndex(index);
+                // Lưu loại vị trí vào order state
+                const locationTypes = ["dine-in", "take-away", "delivery"];
+                const locationType = locationTypes[index.row];
+                setOrder({ ...order, location: locationType });
+              }
+            }}
+          >
+            <SelectItem title={t("dine_in")} />
+            <SelectItem title={t("take_away")} />
+            <SelectItem title={t("delivery")} />
           </Select>
           <Input
             label={t("order_note")}
