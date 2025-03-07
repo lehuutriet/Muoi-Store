@@ -13,9 +13,13 @@ import {
   Text,
   Button,
   Divider,
+  Input,
+  Card,
+  Modal,
 } from "@ui-kitten/components";
 import { useTranslation } from "react-i18next";
-import { useAccounts } from "../hook/AppWrite";
+// Thêm vào phần đầu file, trong phần import
+import { COLLECTION_IDS, useAccounts, useDatabases } from "../hook/AppWrite";
 import QRCode from "react-native-qrcode-svg";
 import { useBLE } from "../hook/BLEContext";
 import {} from "../utils";
@@ -78,7 +82,95 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
   const [totalPrice, setTotalPrice] = useState(0);
   const [finalPrice, setFinalPrice] = useState(0);
   const [userInfo, setUserInfo] = useRecoilState(userAtom);
+  const [returnModalVisible, setReturnModalVisible] = useState(false);
+  const [returnReason, setReturnReason] = useState("");
+  const [selectedItems, setSelectedItems] = useState<{
+    [key: string]: boolean;
+  }>({});
+  // Thêm vào phần đầu của component ReceiptScreen
+  const { updateItem, createItem, getSingleItem } = useDatabases();
+  const [waiting, setWaiting] = useState(false);
+  const showReturnOrderModal = () => {
+    setSelectedItems({});
+    setReturnReason("");
+    setReturnModalVisible(true);
+  };
 
+  const handleReturnOrder = async () => {
+    if (!returnReason) {
+      Alert.alert("", t("please_provide_return_reason"));
+      return;
+    }
+
+    setWaiting(true);
+
+    try {
+      // Tạo dữ liệu để lưu thông tin đơn hàng bị hoàn trả
+      const returnData = {
+        originalOrderId: data?.$id,
+        returnDate: new Date().toISOString(),
+        returnReason: returnReason,
+        returnedItems: data?.order.filter((_, index) => selectedItems[index]),
+        totalReturnAmount: calculateReturnAmount(),
+        status: "returned",
+      };
+
+      // Cập nhật trạng thái đơn hàng gốc thành 'returned'
+      await updateItem(COLLECTION_IDS.orders, data?.$id, {
+        status: "returned",
+        returnReason: returnReason,
+        returnDate: new Date().toISOString(),
+      });
+
+      // Lưu thông tin chi tiết về việc hoàn trả
+      await createItem(COLLECTION_IDS.returns, returnData);
+
+      // Cập nhật lại tồn kho (hoàn trả số lượng vào kho)
+      for (const [index, isSelected] of Object.entries(selectedItems)) {
+        if (isSelected && data?.order[parseInt(index)]) {
+          const item = data.order[parseInt(index)];
+          const product = await getSingleItem(
+            COLLECTION_IDS.products,
+            item.$id
+          );
+
+          if (product) {
+            const currentStock = product.stock || 0;
+            const newStock = currentStock + item.count;
+
+            await updateItem(COLLECTION_IDS.products, item.$id, {
+              stock: newStock,
+            });
+          }
+        }
+      }
+
+      Alert.alert("", t("order_return_success"), [
+        { text: t("ok"), onPress: () => navigation.goBack() },
+      ]);
+    } catch (error) {
+      console.error("Lỗi khi hoàn trả đơn hàng:", error);
+      Alert.alert("", t("order_return_error"));
+    } finally {
+      setWaiting(false);
+      setReturnModalVisible(false);
+    }
+  };
+
+  const calculateReturnAmount = () => {
+    let total = 0;
+
+    if (!data || !data.order) return total;
+
+    Object.entries(selectedItems).forEach(([index, isSelected]) => {
+      if (isSelected) {
+        const item = data.order[parseInt(index)];
+        total += item.price * item.count;
+      }
+    });
+
+    return total;
+  };
   useEffect(() => {
     // Use `setOptions` to update the button that we previously specified
     // Now the button includes an `onPress` handler to update the count
@@ -627,8 +719,8 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
                   ? data.location === "dine-in"
                     ? t("dine_in")
                     : data.location === "take-away"
-                    ? t("take_away")
-                    : t("delivery")
+                      ? t("take_away")
+                      : t("delivery")
                   : t("dine_in")}{" "}
                 {/* Mặc định là tại quán */}
               </Text>
@@ -740,8 +832,8 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
                   {data.status === "cash"
                     ? t("cash")
                     : data.status === "transfer"
-                    ? t("transfer")
-                    : t("payment_method")}
+                      ? t("transfer")
+                      : t("payment_method")}
                 </Text>
               </View>
 
@@ -802,12 +894,8 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
           <></>
         )}
       </ScrollView>
+      // Thêm nút hủy đơn trong ReceiptScreen.tsx
       <Layout level="1" style={styles.buttons as ViewStyle}>
-        {/* <Icon
-          style={{ width: 20, height: 20 }}
-          fill="white"
-          name="printer-outline"
-        /> */}
         <Button
           style={{ flex: 1, marginRight: 5, borderWidth: 0 }}
           appearance="outline"
@@ -823,6 +911,24 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
         >
           {t("print_receipt")}
         </Button>
+
+        {/* Thêm nút hủy đơn hàng */}
+        <Button
+          style={{ flex: 1, marginRight: 5, borderWidth: 0 }}
+          appearance="outline"
+          status="danger"
+          onPress={() => showReturnOrderModal()}
+          accessoryLeft={() => (
+            <Icon
+              style={styles.icon}
+              fill={theme["color-danger-500"]}
+              name="close-circle-outline"
+            />
+          )}
+        >
+          {t("return_order")}
+        </Button>
+
         <Button
           style={{ flex: 1, marginLeft: 5 }}
           onPress={() => {
@@ -838,6 +944,102 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
           {t("create_new_order")}
         </Button>
       </Layout>
+      <Modal
+        visible={returnModalVisible}
+        backdropStyle={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+        onBackdropPress={() => setReturnModalVisible(false)}
+        style={{ width: "90%" }}
+      >
+        <Card>
+          <Text category="h6" style={{ marginBottom: 16, textAlign: "center" }}>
+            {t("return_order")}
+          </Text>
+
+          <Text category="s1" style={{ marginBottom: 8 }}>
+            {t("select_return_items")}:
+          </Text>
+
+          <ScrollView style={{ maxHeight: 200 }}>
+            {data?.order.map((item, index) => (
+              <View
+                key={index}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 8,
+                }}
+              >
+                <Button
+                  appearance={selectedItems[index] ? "filled" : "outline"}
+                  status="primary"
+                  size="tiny"
+                  onPress={() =>
+                    setSelectedItems((prev) => ({
+                      ...prev,
+                      [index]: !prev[index],
+                    }))
+                  }
+                  accessoryLeft={(props) => (
+                    <Icon
+                      {...props}
+                      name={
+                        selectedItems[index]
+                          ? "checkmark-square-outline"
+                          : "square-outline"
+                      }
+                    />
+                  )}
+                  style={{ marginRight: 8 }}
+                />
+                <Text>
+                  {item.name} x{item.count}
+                </Text>
+              </View>
+            ))}
+          </ScrollView>
+
+          <Input
+            label={t("return_reason")}
+            placeholder={t("enter_return_reason")}
+            value={returnReason}
+            onChangeText={setReturnReason}
+            multiline
+            textStyle={{ minHeight: 64 }}
+            style={{ marginVertical: 16 }}
+          />
+
+          <Text category="s1" style={{ marginBottom: 8 }}>
+            {t("total_return_amount")}:{" "}
+            {Intl.NumberFormat("en-US", {
+              style: "currency",
+              currency: "VND",
+            }).format(calculateReturnAmount())}
+          </Text>
+
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              marginTop: 16,
+            }}
+          >
+            <Button
+              status="basic"
+              onPress={() => setReturnModalVisible(false)}
+              style={{ flex: 1, marginRight: 8 }}
+            >
+              {t("cancel")}
+            </Button>
+            <Button
+              status="danger"
+              onPress={handleReturnOrder}
+              style={{ flex: 1 }}
+            >
+              {t("confirm_return")}
+            </Button>
+          </View>
+        </Card>
+      </Modal>
     </Layout>
   );
 };

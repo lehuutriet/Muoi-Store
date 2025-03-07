@@ -262,12 +262,21 @@ const OrderList = ({
             >
               {t("order_id") + ": " + info.item.$id.slice(-4)}
             </Text>
+            // Trong OrderList.tsx - Thêm style cho đơn đã hủy
             <Text
               style={{ fontWeight: "bold" }}
               appearance={info.item.status === "unpaid" ? "default" : "hint"}
-              status={info.item.status === "unpaid" ? "danger" : "basic"}
+              status={
+                info.item.status === "unpaid"
+                  ? "danger"
+                  : info.item.status === "returned"
+                    ? "warning"
+                    : "basic"
+              }
             >
-              {t(info.item.status)}
+              {info.item.status === "returned"
+                ? t("returned")
+                : t(info.item.status)}
             </Text>
           </View>
           <View
@@ -322,7 +331,7 @@ const OrderList = ({
 
           {/* <Icon
           style={{ width: 20, height: 20 }}
-          fill="white"
+          fill="white"  
           name="printer-outline"
         /> */}
 

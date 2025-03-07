@@ -10,6 +10,11 @@ import {
   StyleService,
   useStyleSheet,
   useTheme,
+  Datepicker,
+  Button,
+  Icon,
+  Divider,
+  Modal,
 } from "@ui-kitten/components";
 import {
   ScrollView,
@@ -18,12 +23,15 @@ import {
   TextStyle,
   StyleProp,
   Dimensions,
+  Alert,
 } from "react-native";
 import { useDatabases, COLLECTION_IDS } from "../hook/AppWrite";
 import { Query } from "appwrite";
 import { useFocusEffect } from "@react-navigation/native";
 import { LineChart, BarChart, PieChart } from "react-native-gifted-charts";
-
+import { exportToCSV } from "../utils/exportStatistics";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 const { width } = Dimensions.get("window");
 
 // Định nghĩa các interface
@@ -68,6 +76,7 @@ interface Product {
   cost?: number;
   category?: string;
 }
+
 const StatisticScreen = () => {
   const styles = useStyleSheet(styleSheet);
   const theme = useTheme();
@@ -92,8 +101,19 @@ const StatisticScreen = () => {
   const [profitData, setProfitData] = useState<LineChartData[]>([]);
 
   // Khoảng thời gian thống kê: ngày, tuần, tháng
-  const timeFrames = ["day", "week", "month"];
+  const [startDate, setStartDate] = useState(new Date());
+  const [endDate, setEndDate] = useState(new Date());
+  const [showCustomDateFilter, setShowCustomDateFilter] = useState(false);
+
+  // Thêm các state này vào phần state khai báo
+  const [returnOrders, setReturnOrders] = useState<any[]>([]);
+  const [totalReturnValue, setTotalReturnValue] = useState(0);
+  const [returnReasons, setReturnReasons] = useState<PieChartData[]>([]);
+
+  // Thêm "custom" vào timeFrames
+  const timeFrames = ["day", "week", "month", "custom", "returns"];
   const [timeFrame, setTimeFrame] = useState(timeFrames[0]);
+
   // Dữ liệu doanh thu theo khung giờ
   const [morningRevenue, setMorningRevenue] = useState(0); // 6h-12h
   const [noonRevenue, setNoonRevenue] = useState(0); // 12h-18h
@@ -107,8 +127,14 @@ const StatisticScreen = () => {
   const [avgOrderValue, setAvgOrderValue] = useState(0);
   const [maxOrderValue, setMaxOrderValue] = useState(0);
   const [minOrderValue, setMinOrderValue] = useState(0);
+
   // Thêm doanh thu năm
   const [yearlyRevenue, setYearlyRevenue] = useState(0);
+  // Thêm state mới cho tab trả hàng
+  const [returnStartDate, setReturnStartDate] = useState(new Date());
+  const [returnEndDate, setReturnEndDate] = useState(new Date());
+  const [returnDateFilterVisible, setReturnDateFilterVisible] = useState(false);
+  const [returnDateRangeText, setReturnDateRangeText] = useState("");
   useFocusEffect(
     React.useCallback(() => {
       console.log("StatisticScreen được focus - tải lại dữ liệu");
@@ -130,50 +156,70 @@ const StatisticScreen = () => {
     try {
       // Lấy ngày hiện tại và thiết lập khoảng thời gian
       const today = new Date();
-      let startDate = new Date();
+      let startDateQuery = new Date();
+      let endDateQuery = new Date(today);
+      endDateQuery.setHours(23, 59, 59, 999);
 
       // Thiết lập thời gian bắt đầu dựa trên timeFrame
       if (timeFrame === "day") {
-        startDate.setHours(0, 0, 0, 0);
+        startDateQuery.setHours(0, 0, 0, 0);
       } else if (timeFrame === "week") {
         const day = today.getDay();
         const diff = day === 0 ? 6 : day - 1;
-        startDate.setDate(today.getDate() - diff);
-        startDate.setHours(0, 0, 0, 0);
+        startDateQuery.setDate(today.getDate() - diff);
+        startDateQuery.setHours(0, 0, 0, 0);
       } else if (timeFrame === "month") {
-        startDate.setDate(1);
-        startDate.setHours(0, 0, 0, 0);
+        startDateQuery.setDate(1);
+        startDateQuery.setHours(0, 0, 0, 0);
+      } else if (timeFrame === "custom") {
+        // Sử dụng ngày bắt đầu và kết thúc đã chọn
+        startDateQuery = new Date(startDate);
+        startDateQuery.setHours(0, 0, 0, 0);
+
+        // Đặt ngày kết thúc thành cuối ngày đã chọn
+        endDateQuery = new Date(endDate);
+        endDateQuery.setHours(23, 59, 59, 999);
       }
 
-      const startDateStr = startDate.toISOString();
+      const startDateStr = startDateQuery.toISOString();
+      const endDateStr = endDateQuery.toISOString();
 
       // Truy vấn các đơn hàng đã thanh toán
       const paidQuery = [
         Query.equal("status", ["cash", "transfer"]),
-        Query.greaterThan("$createdAt", startDateStr),
+        Query.notEqual("status", "returned"), // Loại bỏ đơn hàng đã hoàn trả
+        Query.greaterThanEqual("$createdAt", startDateStr),
+        Query.lessThanEqual("$createdAt", endDateStr),
       ];
 
       // Truy vấn đơn hàng chưa thanh toán
       const unpaidQuery = [
         Query.equal("status", "unpaid"),
-        Query.greaterThan("$createdAt", startDateStr),
+        Query.greaterThanEqual("$createdAt", startDateStr),
+        Query.lessThanEqual("$createdAt", endDateStr),
       ];
 
       // Truy vấn đơn hàng hôm nay
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
+      const todayEnd = new Date();
+      todayEnd.setHours(23, 59, 59, 999);
       const todayQuery = [
         Query.equal("status", ["cash", "transfer"]),
-        Query.greaterThan("$createdAt", todayStart.toISOString()),
+        Query.greaterThanEqual("$createdAt", todayStart.toISOString()),
+        Query.lessThanEqual("$createdAt", todayEnd.toISOString()),
       ];
 
       // Thêm truy vấn cho doanh thu năm
       const yearStart = new Date();
       yearStart.setMonth(0, 1);
       yearStart.setHours(0, 0, 0, 0);
+      const yearEnd = new Date();
+      yearEnd.setHours(23, 59, 59, 999);
       const yearQuery = [
         Query.equal("status", ["cash", "transfer"]),
-        Query.greaterThan("$createdAt", yearStart.toISOString()),
+        Query.greaterThanEqual("$createdAt", yearStart.toISOString()),
+        Query.lessThanEqual("$createdAt", yearEnd.toISOString()),
       ];
 
       // Lấy dữ liệu từ database
@@ -191,13 +237,79 @@ const StatisticScreen = () => {
       );
       const yearOrdersData = await getAllItem(COLLECTION_IDS.orders, yearQuery);
 
+      // Lấy dữ liệu đơn hàng đã hoàn trả
+      if (timeFrame === "returns" || selectedIndex === 4) {
+        const returnStartDateQuery = new Date(returnStartDate);
+        returnStartDateQuery.setHours(0, 0, 0, 0);
+
+        const returnEndDateQuery = new Date(returnEndDate);
+        returnEndDateQuery.setHours(23, 59, 59, 999);
+        const returnedQuery = [
+          Query.equal("status", "returned"),
+          Query.greaterThanEqual(
+            "$createdAt",
+            returnStartDateQuery.toISOString()
+          ),
+          Query.lessThanEqual("$createdAt", returnEndDateQuery.toISOString()),
+        ];
+        try {
+          // Nếu collection returns tồn tại:
+          const returnedOrdersData = await getAllItem(
+            COLLECTION_IDS.returns,
+            returnedQuery
+          );
+          setReturnOrders(returnedOrdersData);
+
+          // Tính tổng giá trị hoàn trả
+          let totalReturned = 0;
+          returnedOrdersData.forEach((order: any) => {
+            totalReturned += Number(order.total) || 0;
+          });
+          setTotalReturnValue(totalReturned);
+
+          // Xử lý dữ liệu lý do hoàn trả
+          const reasonsMap = new Map<string, number>();
+          returnedOrdersData.forEach((order: any) => {
+            const reason = order.returnReason || t("unknown_reason");
+            if (reasonsMap.has(reason)) {
+              reasonsMap.set(reason, (reasonsMap.get(reason) || 0) + 1);
+            } else {
+              reasonsMap.set(reason, 1);
+            }
+          });
+
+          // Tạo dữ liệu cho biểu đồ lý do hoàn trả
+          const reasonColors = [
+            "#FF6B6B",
+            "#4ECDC4",
+            "#6C5CE7",
+            "#FDA7DF",
+            "#A8E6CF",
+          ];
+          const reasonsData = [...reasonsMap.entries()].map(
+            ([reason, count], index) => ({
+              value: count,
+              text:
+                reason.length > 20 ? reason.substring(0, 20) + "..." : reason,
+              color: reasonColors[index % reasonColors.length],
+            })
+          );
+          setReturnReasons(reasonsData);
+        } catch (err) {
+          console.error("Lỗi khi lấy dữ liệu đơn hàng hoàn trả:", err);
+          setReturnOrders([]);
+          setReturnReasons([]);
+          setTotalReturnValue(0);
+        }
+      }
+
       // Tính tổng doanh thu
       let total = 0;
       paidOrdersData.forEach((order: Order) => {
         total += Number(order.total) || 0;
       });
 
-      // Tính giá trị trung bình, cao nhất, thấp nhất - ĐẶT SAU KHI ĐÃ CÓ paidOrdersData và total
+      // Tính giá trị trung bình, cao nhất, thấp nhất
       if (paidOrdersData.length > 0) {
         // Giá trị trung bình
         const avgValue = Math.round(total / paidOrdersData.length);
@@ -340,6 +452,98 @@ const StatisticScreen = () => {
       setLoading(false);
     }
   };
+  const updateReturnDateRangeText = () => {
+    setReturnDateRangeText(
+      `${returnStartDate.toLocaleDateString("vi-VN")} - ${returnEndDate.toLocaleDateString("vi-VN")}`
+    );
+  };
+  const applyReturnDateFilter = () => {
+    setReturnDateFilterVisible(false);
+    updateReturnDateRangeText();
+    loadStatistics();
+  };
+  useEffect(() => {
+    updateReturnDateRangeText();
+  }, []);
+  const handleExportCSV = async () => {
+    try {
+      if (selectedIndex === 4) {
+        // Định dạng dữ liệu cho báo cáo trả hàng
+        const returnStatisticsData = {
+          isReturnReport: true,
+          reportType: t("returns_report"),
+          timeFrame: "returns",
+          totalReturns: returnOrders.length,
+          totalReturnValue: totalReturnValue,
+          returnReasons: returnReasons,
+          returnedOrders: returnOrders.map((order) => ({
+            $id: order.$id,
+            returnDate: order.returnDate || order.$createdAt,
+            returnReason: order.returnReason || t("unknown_reason"),
+            totalReturnAmount: order.totalReturnAmount || order.total || 0,
+          })),
+        };
+
+        // Gọi hàm xuất CSV với dữ liệu báo cáo trả hàng
+        const success = await exportToCSV(returnStatisticsData, t);
+
+        if (success) {
+          console.log("Xuất báo cáo trả hàng thành công");
+        } else {
+          console.error("Xuất báo cáo trả hàng thất bại");
+        }
+      } else {
+        // Định dạng dữ liệu cho báo cáo doanh thu và đơn hàng thông thường
+        const statisticsData = {
+          reportType:
+            timeFrame === "day"
+              ? t("daily_report")
+              : timeFrame === "week"
+                ? t("weekly_report")
+                : timeFrame === "month"
+                  ? t("monthly_report")
+                  : t("custom_report"),
+          timeFrame,
+          revenueByDate: revenueByDateFormatted,
+          period:
+            timeFrame === "custom"
+              ? `${t("period")}: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
+              : `${t("period")}: ${timeFrame}`,
+          totalRevenue,
+          totalProfit,
+          totalOrders,
+          paidOrders,
+          unpaidOrders,
+          avgOrderValue,
+          maxOrderValue,
+          minOrderValue,
+          morningRevenue,
+          noonRevenue,
+          eveningRevenue,
+          dineInRevenue,
+          takeAwayRevenue,
+          deliveryRevenue,
+          topProducts,
+          startDate,
+          endDate,
+          peakSellingTimes: hourlyData,
+        };
+
+        // Gọi hàm xuất CSV với dữ liệu báo cáo thông thường
+        const success = await exportToCSV(statisticsData, t);
+
+        if (success) {
+          console.log("Xuất báo cáo doanh thu thành công");
+        } else {
+          console.error("Xuất báo cáo doanh thu thất bại");
+        }
+      }
+    } catch (error) {
+      console.error("Lỗi khi xuất báo cáo:", error);
+      Alert.alert("", t("export_error"));
+    }
+  };
+
   // Hàm xử lý dữ liệu doanh thu theo ngày/tuần/tháng
   const processRevenueByDate = (
     orders: Order[],
@@ -354,11 +558,11 @@ const StatisticScreen = () => {
       if (timeFrame === "day") {
         return `${d.getHours()}h`;
       } else if (timeFrame === "week") {
-        // Hiển thị ngày trong tuần (thứ 2, thứ 3, etc.)
+        // Hiển thị ngày trong tuần với ngày tháng năm đầy đủ
         const weekdays = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
-        return weekdays[d.getDay()];
+        return `${weekdays[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}`;
       } else {
-        // Với tháng, hiển thị ngày/tháng
+        // Hiển thị ngày tháng năm đầy đủ
         return `${d.getDate()}/${d.getMonth() + 1}`;
       }
     };
@@ -398,6 +602,13 @@ const StatisticScreen = () => {
       label: key,
     }));
   };
+
+  const revenueByDateFormatted = revenueData.map((item) => ({
+    label: item.label.includes("/")
+      ? `${item.label}/${new Date().getFullYear()}`
+      : item.label,
+    value: item.value,
+  }));
 
   // Hàm xử lý dữ liệu top sản phẩm bán chạy
   const processTopProducts = (orders: Order[]): PieChartData[] => {
@@ -498,7 +709,139 @@ const StatisticScreen = () => {
           <Tab title={t("day")} />
           <Tab title={t("week")} />
           <Tab title={t("month")} />
+          <Tab title={t("custom")} />
+          <Tab title={t("returns")} />
         </TabBar>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            paddingVertical: 8,
+          }}
+        >
+          {selectedIndex === 4 && (
+            <Button
+              size="small"
+              appearance="outline"
+              status="primary"
+              accessoryLeft={(props) => (
+                <Icon {...props} name="calendar-outline" />
+              )}
+              onPress={() => setReturnDateFilterVisible(true)}
+            >
+              {t("filter_by_date")}
+            </Button>
+          )}
+          <Button
+            size="small"
+            status="primary"
+            accessoryLeft={(props) => (
+              <Icon {...props} name="file-text-outline" />
+            )}
+            onPress={handleExportCSV}
+          >
+            {t("export_csv")}
+          </Button>
+        </View>
+        {selectedIndex === 3 && (
+          <View style={styles.customDateContainer as ViewStyle}>
+            <View style={styles.datePickerRow as ViewStyle}>
+              <Text category="label">{t("start_date")}:</Text>
+              <Datepicker
+                date={startDate}
+                onSelect={(nextDate) => setStartDate(nextDate)}
+                max={endDate}
+                style={styles.datePicker as ViewStyle}
+                size="small"
+              />
+            </View>
+            <View style={styles.datePickerRow as ViewStyle}>
+              <Text category="label">{t("end_date")}:</Text>
+              <Datepicker
+                date={endDate}
+                onSelect={(nextDate) => setEndDate(nextDate)}
+                min={startDate}
+                max={new Date()}
+                style={styles.datePicker as ViewStyle}
+                size="small"
+              />
+            </View>
+            <Button
+              style={styles.applyButton as ViewStyle}
+              size="small"
+              onPress={loadStatistics}
+            >
+              {t("apply")}
+            </Button>
+          </View>
+        )}
+        {/* Bộ lọc ngày cho tab trả hàng */}
+        {selectedIndex === 4 && (
+          <View style={styles.filterContainer as ViewStyle}>
+            {returnDateRangeText && (
+              <Text category="s1" style={styles.dateRangeText as TextStyle}>
+                {returnDateRangeText}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* Modal lọc ngày cho tab trả hàng */}
+        <Modal
+          visible={returnDateFilterVisible}
+          backdropStyle={styles.backdrop as ViewStyle}
+          onBackdropPress={() => setReturnDateFilterVisible(false)}
+          style={styles.modalContainer as ViewStyle}
+        >
+          <Card disabled style={styles.datePickerModal as ViewStyle}>
+            <Text category="h6" style={styles.modalHeader as TextStyle}>
+              {t("filter_by_date")}
+            </Text>
+
+            <View style={styles.datePickerRow as ViewStyle}>
+              <Text category="label">{t("start_date")}:</Text>
+              <Datepicker
+                date={returnStartDate}
+                onSelect={(nextDate) => setReturnStartDate(nextDate)}
+                max={returnEndDate}
+                style={styles.datePicker as ViewStyle}
+                size="small"
+              />
+            </View>
+
+            <View style={styles.datePickerRow as ViewStyle}>
+              <Text category="label">{t("end_date")}:</Text>
+              <Datepicker
+                date={returnEndDate}
+                onSelect={(nextDate) => setReturnEndDate(nextDate)}
+                min={returnStartDate}
+                max={new Date()}
+                style={styles.datePicker as ViewStyle}
+                size="small"
+              />
+            </View>
+
+            <View style={styles.modalButtonContainer as ViewStyle}>
+              <Button
+                size="small"
+                appearance="outline"
+                status="basic"
+                style={styles.modalButton as ViewStyle}
+                onPress={() => setReturnDateFilterVisible(false)}
+              >
+                {t("cancel")}
+              </Button>
+              <Button
+                size="small"
+                status="primary"
+                style={styles.modalButton as ViewStyle}
+                onPress={applyReturnDateFilter}
+              >
+                {t("apply")}
+              </Button>
+            </View>
+          </Card>
+        </Modal>
       </View>
 
       {loading ? (
@@ -510,451 +853,619 @@ const StatisticScreen = () => {
         </View>
       ) : (
         <ScrollView style={styles.scrollContainer as ViewStyle}>
-          <View style={styles.mainStats as ViewStyle}>
-            <Card
-              style={
-                [
-                  styles.mainStatCard,
-                  styles.revenueCard,
-                ] as StyleProp<ViewStyle>
-              }
-            >
-              <Text category="label" style={styles.statLabel as TextStyle}>
-                {t("total_revenue")}
+          {selectedIndex === 4 ? (
+            <Card style={styles.reportCard as ViewStyle}>
+              <Text category="h5" style={styles.reportTitle as TextStyle}>
+                {t("returns_report")}
               </Text>
-              <Text category="h4" style={styles.statValue as TextStyle}>
-                {Intl.NumberFormat("vi-VN", {
-                  style: "currency",
-                  currency: "VND",
-                }).format(totalRevenue)}
-              </Text>
-            </Card>
 
-            <Card
-              style={
-                [styles.mainStatCard, styles.todayCard] as StyleProp<ViewStyle>
-              }
-            >
-              <Text category="label" style={styles.statLabel as TextStyle}>
-                {timeFrame === "day"
-                  ? t("today_revenue")
-                  : timeFrame === "week"
-                  ? t("week_revenue")
-                  : t("month_revenue")}
-              </Text>
-              <Text category="h4" style={styles.statValue as TextStyle}>
-                {Intl.NumberFormat("vi-VN", {
-                  style: "currency",
-                  currency: "VND",
-                }).format(dailyRevenue)}
-              </Text>
-            </Card>
-          </View>
-          <Card
-            style={
-              [styles.mainStatCard, styles.profitCard] as StyleProp<ViewStyle>
-            }
-          >
-            <Text category="label" style={styles.statLabel as TextStyle}>
-              {t("total_profit")}
-            </Text>
-            <Text category="h4" style={styles.statValue as TextStyle}>
-              {Intl.NumberFormat("vi-VN", {
-                style: "currency",
-                currency: "VND",
-              }).format(totalProfit)}
-            </Text>
-          </Card>
-          <View style={styles.orderStats as ViewStyle}>
-            <Card style={styles.totalOrderCard as ViewStyle}>
-              <View style={styles.orderCardContent as ViewStyle}>
-                <Text category="label">{t("total_orders")}</Text>
-                <Text category="h3">{totalOrders}</Text>
+              {/* Thẻ tổng quan cải tiến */}
+              <View style={styles.statsOverview as ViewStyle}>
+                <View style={styles.statCard as ViewStyle}>
+                  <View
+                    style={[
+                      styles.iconCircle,
+                      { backgroundColor: "#FEE7E7" } as any,
+                    ]}
+                  >
+                    <Icon
+                      name="close-circle"
+                      fill="#FF3D71"
+                      style={{ width: 28, height: 28 }}
+                    />
+                  </View>
+                  <Text category="s2" style={styles.statLabel as TextStyle}>
+                    {t("total_returns")}
+                  </Text>
+                  <Text category="h4" style={{ color: "#FF3D71" }}>
+                    {returnOrders.length}
+                  </Text>
+                </View>
+
+                <View style={styles.statCard as ViewStyle}>
+                  <View
+                    style={[
+                      styles.iconCircle,
+                      { backgroundColor: "#FFF4DB" } as any,
+                    ]}
+                  >
+                    <Icon
+                      name="credit-card"
+                      fill="#FFAA00"
+                      style={{ width: 28, height: 28 }}
+                    />
+                  </View>
+                  <Text category="s2" style={styles.statLabel as TextStyle}>
+                    {t("total_return_value")}
+                  </Text>
+                  <Text category="h4" style={{ color: "#FFAA00" }}>
+                    {totalReturnValue.toLocaleString("vi-VN")}đ
+                  </Text>
+                </View>
               </View>
-            </Card>
 
-            <View style={styles.orderDetailsRow as ViewStyle}>
-              <Card
-                style={
-                  [
-                    styles.orderDetailCard,
-                    styles.paidCard,
-                  ] as StyleProp<ViewStyle>
-                }
-              >
-                <View style={styles.orderDetailContent as ViewStyle}>
-                  <Text category="label">{t("paid_orders")}</Text>
-                  <Text category="h5">{paidOrders}</Text>
-                </View>
-              </Card>
-
-              <Card
-                style={
-                  [
-                    styles.orderDetailCard,
-                    styles.unpaidCard,
-                  ] as StyleProp<ViewStyle>
-                }
-              >
-                <View style={styles.orderDetailContent as ViewStyle}>
-                  <Text category="label">{t("unpaid_orders")}</Text>
-                  <Text category="h5">{unpaidOrders}</Text>
-                </View>
-              </Card>
-            </View>
-          </View>
-
-          {/* Thêm card giá trị đơn hàng */}
-          <View style={styles.orderDetails as ViewStyle}>
-            <Card style={styles.orderCard as ViewStyle}>
-              <Text category="label">{t("avg_order_value")}</Text>
-              <Text category="h6">
-                {Intl.NumberFormat("vi-VN", {
-                  style: "currency",
-                  currency: "VND",
-                }).format(avgOrderValue)}
-              </Text>
-            </Card>
-
-            <View style={styles.orderDetailsRow as ViewStyle}>
-              <Card
-                style={
-                  [
-                    styles.orderDetailCard,
-                    styles.maxCard,
-                  ] as StyleProp<ViewStyle>
-                }
-              >
-                <View style={styles.orderDetailContent as ViewStyle}>
-                  <Text category="label">{t("max_order")}</Text>
-                  <Text category="s1">
-                    {Intl.NumberFormat("vi-VN", {
-                      style: "currency",
-                      currency: "VND",
-                    }).format(maxOrderValue)}
-                  </Text>
-                </View>
-              </Card>
-
-              <Card
-                style={
-                  [
-                    styles.orderDetailCard,
-                    styles.minCard,
-                  ] as StyleProp<ViewStyle>
-                }
-              >
-                <View style={styles.orderDetailContent as ViewStyle}>
-                  <Text category="label">{t("min_order")}</Text>
-                  <Text category="s1">
-                    {Intl.NumberFormat("vi-VN", {
-                      style: "currency",
-                      currency: "VND",
-                    }).format(minOrderValue)}
-                  </Text>
-                </View>
-              </Card>
-            </View>
-          </View>
-          {/* Biểu đồ doanh thu theo thời gian */}
-          <Card style={styles.chartCard as ViewStyle}>
-            <Text category="h6" style={styles.chartTitle as TextStyle}>
-              {timeFrame === "day"
-                ? t("revenue_by_hour")
-                : timeFrame === "week"
-                ? t("revenue_by_day")
-                : t("revenue_by_date")}
-            </Text>
-            {revenueData.length > 0 ? (
-              <View style={styles.chartContainer as ViewStyle}>
-                <LineChart
-                  height={220}
-                  initialSpacing={20} // Tăng khoảng cách lề trái
-                  endSpacing={20} // Thêm khoảng cách lề phải
-                  hideDataPoints={false}
-                  color={theme["color-primary-500"]}
-                  thickness={2}
-                  startFillColor={theme["color-primary-100"]}
-                  endFillColor={theme["color-primary-100"]}
-                  startOpacity={0.4}
-                  endOpacity={0.1}
-                  data={revenueData}
-                  width={Math.max(width - 80, revenueData.length * 80)}
-                  spacing={40}
-                  noOfSections={6}
-                  yAxisTextStyle={{ color: theme["text-hint-color"] }}
-                  rulesColor={theme["color-basic-400"]}
-                  rulesType="solid"
-                  yAxisColor={theme["color-basic-500"]}
-                  xAxisColor={theme["color-basic-500"]}
-                  showVerticalLines
-                  verticalLinesColor={theme["color-basic-400"]}
-                  dataPointsColor={theme["color-primary-600"]}
-                  dataPointsRadius={5}
-                  focusEnabled
-                  showFractionalValues
-                  formatYLabel={(value: any) => `${Math.round(value / 1000)}k`}
-                  // Đã xóa pointerLabelComponent vì nó không tồn tại trong API hiện tại
+              {/* Danh sách đơn hàng đã hoàn trả */}
+              <View style={styles.sectionHeader as ViewStyle}>
+                <Icon
+                  name="list"
+                  fill={theme["color-primary-500"]}
+                  style={{ width: 20, height: 20, marginRight: 8 }}
                 />
+                <Text category="h6" style={styles.sectionTitle as TextStyle}>
+                  {t("returned_orders")}
+                </Text>
               </View>
-            ) : (
-              <Text style={styles.noDataText as TextStyle}>
-                {t("no_data_available")}
-              </Text>
-            )}
-          </Card>
-          {/* Biểu đồ sản phẩm bán chạy */}
-          <Card style={styles.chartCard as ViewStyle}>
-            <Text category="h6" style={styles.chartTitle as TextStyle}>
-              {t("top_selling_products")}
-            </Text>
-            {topProducts.length > 0 ? (
-              <View style={styles.pieChartContainer as ViewStyle}>
-                <PieChart
-                  data={topProducts}
-                  donut
-                  textColor={theme["text-basic-color"]}
-                  textSize={10}
-                  showGradient={true}
-                  sectionAutoFocus
-                  radius={90}
-                  innerRadius={30}
-                  innerCircleColor={theme["background-basic-color-1"]}
-                  centerLabelComponent={() => {
-                    return (
-                      <View style={styles.pieCenterLabel as ViewStyle}>
-                        <Text style={styles.pieCenterText as TextStyle}>
-                          {t("products")}
-                        </Text>
+
+              {returnOrders.length > 0 ? (
+                <ScrollView
+                  style={styles.orderList as ViewStyle}
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={{ paddingBottom: 16 }}
+                >
+                  {returnOrders.map((order, index) => (
+                    <View key={index} style={styles.orderCard as ViewStyle}>
+                      <View style={styles.orderCardHeader as ViewStyle}>
+                        <View style={styles.orderIdWrapper as ViewStyle}>
+                          <Icon
+                            name="shopping-bag"
+                            fill="#3366FF"
+                            style={{ width: 16, height: 16, marginRight: 6 }}
+                          />
+                          <Text
+                            category="s1"
+                            style={styles.orderIdText as TextStyle}
+                          >
+                            {order.$id.slice(-4)}
+                          </Text>
+                        </View>
+                        <View style={styles.amountBadge as ViewStyle}>
+                          <Text style={styles.amountText as TextStyle}>
+                            {order.totalReturnAmount.toLocaleString("vi-VN")}đ
+                          </Text>
+                        </View>
                       </View>
-                    );
-                  }}
-                />
-                <View style={styles.legendContainer as ViewStyle}>
-                  {topProducts.map((item, index) => (
-                    <View key={index} style={styles.legendItem as ViewStyle}>
-                      <View
-                        style={[
-                          styles.legendColor as ViewStyle,
-                          { backgroundColor: item.color },
-                        ]}
-                      />
-                      <Text style={styles.legendText as TextStyle}>
-                        {item.text.length > 15
-                          ? item.text.substring(0, 15) + "..."
-                          : item.text}{" "}
-                        ({item.value})
-                      </Text>
+
+                      <Divider style={{ marginVertical: 10 }} />
+
+                      <View style={styles.orderDetails as ViewStyle}>
+                        <View style={styles.detailRow as ViewStyle}>
+                          <Icon
+                            name="calendar"
+                            fill="#8F9BB3"
+                            style={{ width: 14, height: 14, marginRight: 8 }}
+                          />
+                          <Text appearance="hint" style={{ fontSize: 13 }}>
+                            {new Date(order.returnDate).toLocaleDateString(
+                              "vi-VN",
+                              {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              }
+                            )}
+                          </Text>
+                        </View>
+
+                        <View
+                          style={[styles.detailRow, { marginTop: 8 }] as any}
+                        >
+                          <Icon
+                            name="alert-triangle"
+                            fill="#FFAA00"
+                            style={{ width: 14, height: 14, marginRight: 8 }}
+                          />
+                          <Text style={{ fontSize: 13, flex: 1 }}>
+                            <Text style={{ fontWeight: "bold" }}>
+                              {t("reason")}:{" "}
+                            </Text>
+                            {order.returnReason}
+                          </Text>
+                        </View>
+                      </View>
                     </View>
                   ))}
+                </ScrollView>
+              ) : (
+                <View style={styles.emptyState as ViewStyle}>
+                  <Icon
+                    name="inbox"
+                    fill="#DDE1E6"
+                    style={{ width: 60, height: 60, marginBottom: 16 }}
+                  />
+                  <Text category="s1" appearance="hint">
+                    {t("no_returned_orders")}
+                  </Text>
+                </View>
+              )}
+            </Card>
+          ) : (
+            // Hiển thị thống kê thông thường cho các tab khác
+            <>
+              <View style={styles.mainStats as ViewStyle}>
+                <Card
+                  style={
+                    [
+                      styles.mainStatCard,
+                      styles.revenueCard,
+                    ] as StyleProp<ViewStyle>
+                  }
+                >
+                  <Text category="label" style={styles.statLabel as TextStyle}>
+                    {t("total_revenue")}
+                  </Text>
+                  <Text category="h4" style={styles.statValue as TextStyle}>
+                    {Intl.NumberFormat("vi-VN", {
+                      style: "currency",
+                      currency: "VND",
+                    }).format(totalRevenue)}
+                  </Text>
+                </Card>
+
+                <Card
+                  style={
+                    [
+                      styles.mainStatCard,
+                      styles.todayCard,
+                    ] as StyleProp<ViewStyle>
+                  }
+                >
+                  <Text category="label" style={styles.statLabel as TextStyle}>
+                    {timeFrame === "day"
+                      ? t("today_revenue")
+                      : timeFrame === "week"
+                        ? t("week_revenue")
+                        : t("month_revenue")}
+                  </Text>
+                  <Text category="h4" style={styles.statValue as TextStyle}>
+                    {Intl.NumberFormat("vi-VN", {
+                      style: "currency",
+                      currency: "VND",
+                    }).format(dailyRevenue)}
+                  </Text>
+                </Card>
+              </View>
+              <Card
+                style={
+                  [
+                    styles.mainStatCard,
+                    styles.profitCard,
+                  ] as StyleProp<ViewStyle>
+                }
+              >
+                <Text category="label" style={styles.statLabel as TextStyle}>
+                  {t("total_profit")}
+                </Text>
+                <Text category="h4" style={styles.statValue as TextStyle}>
+                  {Intl.NumberFormat("vi-VN", {
+                    style: "currency",
+                    currency: "VND",
+                  }).format(totalProfit)}
+                </Text>
+              </Card>
+              <View style={styles.orderStats as ViewStyle}>
+                <Card style={styles.totalOrderCard as ViewStyle}>
+                  <View style={styles.orderCardContent as ViewStyle}>
+                    <Text category="label">{t("total_orders")}</Text>
+                    <Text category="h3">{totalOrders}</Text>
+                  </View>
+                </Card>
+
+                <View style={styles.orderDetailsRow as ViewStyle}>
+                  <Card
+                    style={
+                      [
+                        styles.orderDetailCard,
+                        styles.paidCard,
+                      ] as StyleProp<ViewStyle>
+                    }
+                  >
+                    <View style={styles.orderDetailContent as ViewStyle}>
+                      <Text category="label">{t("paid_orders")}</Text>
+                      <Text category="h5">{paidOrders}</Text>
+                    </View>
+                  </Card>
+
+                  <Card
+                    style={
+                      [
+                        styles.orderDetailCard,
+                        styles.unpaidCard,
+                      ] as StyleProp<ViewStyle>
+                    }
+                  >
+                    <View style={styles.orderDetailContent as ViewStyle}>
+                      <Text category="label">{t("unpaid_orders")}</Text>
+                      <Text category="h5">{unpaidOrders}</Text>
+                    </View>
+                  </Card>
                 </View>
               </View>
-            ) : (
-              <Text style={styles.noDataText as TextStyle}>
-                {t("no_data_available")}
-              </Text>
-            )}
-          </Card>
-          {/* Thêm vào trong scrollView sau các thống kê hiện tại */}
 
-          {/* Card Doanh thu theo khung giờ */}
-          <Card style={styles.chartCard as ViewStyle}>
-            <Text category="h6" style={styles.chartTitle as TextStyle}>
-              {t("revenue_by_time_segment")}
-            </Text>
-            <View style={styles.timeSegmentStats as ViewStyle}>
-              <View style={styles.timeSegment as ViewStyle}>
-                <Text category="label">{t("morning")} (6h-12h)</Text>
-                <Text category="s1">
-                  {Intl.NumberFormat("vi-VN", {
-                    style: "currency",
-                    currency: "VND",
-                  }).format(morningRevenue)}
-                </Text>
-              </View>
-              <View style={styles.timeSegment as ViewStyle}>
-                <Text category="label">{t("noon")} (12h-18h)</Text>
-                <Text category="s1">
-                  {Intl.NumberFormat("vi-VN", {
-                    style: "currency",
-                    currency: "VND",
-                  }).format(noonRevenue)}
-                </Text>
-              </View>
-              <View style={styles.timeSegment as ViewStyle}>
-                <Text category="label">{t("evening")} (18h-22h)</Text>
-                <Text category="s1">
-                  {Intl.NumberFormat("vi-VN", {
-                    style: "currency",
-                    currency: "VND",
-                  }).format(eveningRevenue)}
-                </Text>
-              </View>
-            </View>
-            {/* Thêm biểu đồ cột cho doanh thu theo khung giờ */}
-            <View style={styles.chartContainer as ViewStyle}>
-              <BarChart
-                data={[
-                  {
-                    value: morningRevenue,
-                    label: t("morning"),
-                    frontColor: theme["color-info-500"],
-                  },
-                  {
-                    value: noonRevenue,
-                    label: t("noon"),
-                    frontColor: theme["color-warning-500"],
-                  },
-                  {
-                    value: eveningRevenue,
-                    label: t("evening"),
-                    frontColor: theme["color-danger-500"],
-                  },
-                ]}
-                width={width - 80}
-                height={200}
-                spacing={50}
-                barWidth={40}
-                noOfSections={5}
-                barBorderRadius={4}
-                yAxisTextStyle={{ color: theme["text-hint-color"] }}
-                showVerticalLines
-                verticalLinesColor={theme["color-basic-400"]}
-                formatYLabel={(value: any) => `${Math.round(value / 1000)}k`}
-              />
-            </View>
-          </Card>
+              {/* Thêm card giá trị đơn hàng */}
+              <View style={styles.orderDetails as ViewStyle}>
+                <Card style={styles.orderCard as ViewStyle}>
+                  <Text category="label">{t("avg_order_value")}</Text>
+                  <Text category="h6">
+                    {Intl.NumberFormat("vi-VN", {
+                      style: "currency",
+                      currency: "VND",
+                    }).format(avgOrderValue)}
+                  </Text>
+                </Card>
 
-          {/* Card Doanh thu theo khu vực */}
-          <Card style={styles.chartCard as ViewStyle}>
-            <Text category="h6" style={styles.chartTitle as TextStyle}>
-              {t("revenue_by_location")}
-            </Text>
-            {dineInRevenue > 0 || takeAwayRevenue > 0 || deliveryRevenue > 0 ? (
-              <View style={styles.pieChartContainer as ViewStyle}>
-                <PieChart
-                  data={[
-                    {
-                      value: dineInRevenue,
-                      text: t("dine_in"),
-                      color: theme["color-primary-500"],
-                    },
-                    {
-                      value: takeAwayRevenue,
-                      text: t("take_away"),
-                      color: theme["color-success-500"],
-                    },
-                    {
-                      value: deliveryRevenue,
-                      text: t("delivery"),
-                      color: theme["color-info-500"],
-                    },
-                  ]}
-                  donut
-                  textColor={theme["text-basic-color"]}
-                  textSize={10}
-                  showGradient={true}
-                  sectionAutoFocus
-                  radius={90}
-                  innerRadius={30}
-                  innerCircleColor={theme["background-basic-color-1"]}
-                  centerLabelComponent={() => {
-                    return (
-                      <View style={styles.pieCenterLabel as ViewStyle}>
-                        <Text style={styles.pieCenterText as TextStyle}>
-                          {t("location")}
+                <View style={styles.orderDetailsRow as ViewStyle}>
+                  <Card
+                    style={
+                      [
+                        styles.orderDetailCard,
+                        styles.maxCard,
+                      ] as StyleProp<ViewStyle>
+                    }
+                  >
+                    <View style={styles.orderDetailContent as ViewStyle}>
+                      <Text category="label">{t("max_order")}</Text>
+                      <Text category="s1">
+                        {Intl.NumberFormat("vi-VN", {
+                          style: "currency",
+                          currency: "VND",
+                        }).format(maxOrderValue)}
+                      </Text>
+                    </View>
+                  </Card>
+
+                  <Card
+                    style={
+                      [
+                        styles.orderDetailCard,
+                        styles.minCard,
+                      ] as StyleProp<ViewStyle>
+                    }
+                  >
+                    <View style={styles.orderDetailContent as ViewStyle}>
+                      <Text category="label">{t("min_order")}</Text>
+                      <Text category="s1">
+                        {Intl.NumberFormat("vi-VN", {
+                          style: "currency",
+                          currency: "VND",
+                        }).format(minOrderValue)}
+                      </Text>
+                    </View>
+                  </Card>
+                </View>
+              </View>
+
+              {/* Biểu đồ doanh thu theo thời gian */}
+              <Card style={styles.chartCard as ViewStyle}>
+                <Text category="h6" style={styles.chartTitle as TextStyle}>
+                  {timeFrame === "day"
+                    ? t("revenue_by_hour")
+                    : timeFrame === "week"
+                      ? t("revenue_by_day")
+                      : t("revenue_by_date")}
+                </Text>
+                {revenueData.length > 0 ? (
+                  <View style={styles.chartContainer as ViewStyle}>
+                    <LineChart
+                      height={220}
+                      initialSpacing={20}
+                      endSpacing={20}
+                      hideDataPoints={false}
+                      color={theme["color-primary-500"]}
+                      thickness={2}
+                      startFillColor={theme["color-primary-100"]}
+                      endFillColor={theme["color-primary-100"]}
+                      startOpacity={0.4}
+                      endOpacity={0.1}
+                      data={revenueData}
+                      width={Math.max(width - 80, revenueData.length * 80)}
+                      spacing={40}
+                      noOfSections={6}
+                      yAxisTextStyle={{ color: theme["text-hint-color"] }}
+                      rulesColor={theme["color-basic-400"]}
+                      rulesType="solid"
+                      yAxisColor={theme["color-basic-500"]}
+                      xAxisColor={theme["color-basic-500"]}
+                      showVerticalLines
+                      verticalLinesColor={theme["color-basic-400"]}
+                      dataPointsColor={theme["color-primary-600"]}
+                      dataPointsRadius={5}
+                      focusEnabled
+                      showFractionalValues
+                      formatYLabel={(value: any) =>
+                        `${Math.round(value / 1000)}k`
+                      }
+                    />
+                  </View>
+                ) : (
+                  <Text style={styles.noDataText as TextStyle}>
+                    {t("no_data_available")}
+                  </Text>
+                )}
+              </Card>
+
+              {/* Biểu đồ sản phẩm bán chạy */}
+              <Card style={styles.chartCard as ViewStyle}>
+                <Text category="h6" style={styles.chartTitle as TextStyle}>
+                  {t("top_selling_products")}
+                </Text>
+                {topProducts.length > 0 ? (
+                  <View style={styles.pieChartContainer as ViewStyle}>
+                    <PieChart
+                      data={topProducts}
+                      donut
+                      textColor={theme["text-basic-color"]}
+                      textSize={10}
+                      showGradient={true}
+                      sectionAutoFocus
+                      radius={90}
+                      innerRadius={30}
+                      innerCircleColor={theme["background-basic-color-1"]}
+                      centerLabelComponent={() => {
+                        return (
+                          <View style={styles.pieCenterLabel as ViewStyle}>
+                            <Text style={styles.pieCenterText as TextStyle}>
+                              {t("products")}
+                            </Text>
+                          </View>
+                        );
+                      }}
+                    />
+                    <View style={styles.legendContainer as ViewStyle}>
+                      {topProducts.map((item, index) => (
+                        <View
+                          key={index}
+                          style={styles.legendItem as ViewStyle}
+                        >
+                          <View
+                            style={[
+                              styles.legendColor as ViewStyle,
+                              { backgroundColor: item.color },
+                            ]}
+                          />
+                          <Text style={styles.legendText as TextStyle}>
+                            {item.text.length > 15
+                              ? item.text.substring(0, 15) + "..."
+                              : item.text}{" "}
+                            ({item.value})
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                ) : (
+                  <Text style={styles.noDataText as TextStyle}>
+                    {t("no_data_available")}
+                  </Text>
+                )}
+              </Card>
+
+              {/* Card Doanh thu theo khung giờ */}
+              <Card style={styles.chartCard as ViewStyle}>
+                <Text category="h6" style={styles.chartTitle as TextStyle}>
+                  {t("revenue_by_time_segment")}
+                </Text>
+                <View style={styles.timeSegmentStats as ViewStyle}>
+                  <View style={styles.timeSegment as ViewStyle}>
+                    <Text category="label">{t("morning")} (6h-12h)</Text>
+                    <Text category="s1">
+                      {Intl.NumberFormat("vi-VN", {
+                        style: "currency",
+                        currency: "VND",
+                      }).format(morningRevenue)}
+                    </Text>
+                  </View>
+                  <View style={styles.timeSegment as ViewStyle}>
+                    <Text category="label">{t("noon")} (12h-18h)</Text>
+                    <Text category="s1">
+                      {Intl.NumberFormat("vi-VN", {
+                        style: "currency",
+                        currency: "VND",
+                      }).format(noonRevenue)}
+                    </Text>
+                  </View>
+                  <View style={styles.timeSegment as ViewStyle}>
+                    <Text category="label">{t("evening")} (18h-22h)</Text>
+                    <Text category="s1">
+                      {Intl.NumberFormat("vi-VN", {
+                        style: "currency",
+                        currency: "VND",
+                      }).format(eveningRevenue)}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Thêm biểu đồ cột cho doanh thu theo khung giờ */}
+                <View style={styles.chartContainer as ViewStyle}>
+                  <BarChart
+                    data={[
+                      {
+                        value: morningRevenue,
+                        label: t("morning"),
+                        frontColor: theme["color-info-500"],
+                      },
+                      {
+                        value: noonRevenue,
+                        label: t("noon"),
+                        frontColor: theme["color-warning-500"],
+                      },
+                      {
+                        value: eveningRevenue,
+                        label: t("evening"),
+                        frontColor: theme["color-danger-500"],
+                      },
+                    ]}
+                    width={width - 80}
+                    height={200}
+                    spacing={50}
+                    barWidth={40}
+                    noOfSections={5}
+                    barBorderRadius={4}
+                    yAxisTextStyle={{ color: theme["text-hint-color"] }}
+                    showVerticalLines
+                    verticalLinesColor={theme["color-basic-400"]}
+                    formatYLabel={(value: any) =>
+                      `${Math.round(value / 1000)}k`
+                    }
+                  />
+                </View>
+              </Card>
+
+              {/* Card Doanh thu theo khu vực */}
+              <Card style={styles.chartCard as ViewStyle}>
+                <Text category="h6" style={styles.chartTitle as TextStyle}>
+                  {t("revenue_by_location")}
+                </Text>
+                {dineInRevenue > 0 ||
+                takeAwayRevenue > 0 ||
+                deliveryRevenue > 0 ? (
+                  <View style={styles.pieChartContainer as ViewStyle}>
+                    <PieChart
+                      data={[
+                        {
+                          value: dineInRevenue,
+                          text: t("dine_in"),
+                          color: theme["color-primary-500"],
+                        },
+                        {
+                          value: takeAwayRevenue,
+                          text: t("take_away"),
+                          color: theme["color-success-500"],
+                        },
+                        {
+                          value: deliveryRevenue,
+                          text: t("delivery"),
+                          color: theme["color-info-500"],
+                        },
+                      ]}
+                      donut
+                      textColor={theme["text-basic-color"]}
+                      textSize={10}
+                      showGradient={true}
+                      sectionAutoFocus
+                      radius={90}
+                      innerRadius={30}
+                      innerCircleColor={theme["background-basic-color-1"]}
+                      centerLabelComponent={() => {
+                        return (
+                          <View style={styles.pieCenterLabel as ViewStyle}>
+                            <Text style={styles.pieCenterText as TextStyle}>
+                              {t("location")}
+                            </Text>
+                          </View>
+                        );
+                      }}
+                    />
+                    <View style={styles.legendContainer as ViewStyle}>
+                      <View style={styles.legendItem as ViewStyle}>
+                        <View
+                          style={[
+                            styles.legendColor as ViewStyle,
+                            { backgroundColor: theme["color-primary-500"] },
+                          ]}
+                        />
+                        <Text style={styles.legendText as TextStyle}>
+                          {t("dine_in")}:{" "}
+                          {Intl.NumberFormat("vi-VN", {
+                            style: "currency",
+                            currency: "VND",
+                          }).format(dineInRevenue)}
                         </Text>
                       </View>
-                    );
-                  }}
-                />
-                <View style={styles.legendContainer as ViewStyle}>
-                  <View style={styles.legendItem as ViewStyle}>
-                    <View
-                      style={[
-                        styles.legendColor as ViewStyle,
-                        { backgroundColor: theme["color-primary-500"] },
-                      ]}
-                    />
-                    <Text style={styles.legendText as TextStyle}>
-                      {t("dine_in")}:{" "}
-                      {Intl.NumberFormat("vi-VN", {
-                        style: "currency",
-                        currency: "VND",
-                      }).format(dineInRevenue)}
-                    </Text>
+                      <View style={styles.legendItem as ViewStyle}>
+                        <View
+                          style={[
+                            styles.legendColor as ViewStyle,
+                            { backgroundColor: theme["color-success-500"] },
+                          ]}
+                        />
+                        <Text style={styles.legendText as TextStyle}>
+                          {t("take_away")}:{" "}
+                          {Intl.NumberFormat("vi-VN", {
+                            style: "currency",
+                            currency: "VND",
+                          }).format(takeAwayRevenue)}
+                        </Text>
+                      </View>
+                      <View style={styles.legendItem as ViewStyle}>
+                        <View
+                          style={[
+                            styles.legendColor as ViewStyle,
+                            { backgroundColor: theme["color-info-500"] },
+                          ]}
+                        />
+                        <Text style={styles.legendText as TextStyle}>
+                          {t("delivery")}:{" "}
+                          {Intl.NumberFormat("vi-VN", {
+                            style: "currency",
+                            currency: "VND",
+                          }).format(deliveryRevenue)}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
-                  <View style={styles.legendItem as ViewStyle}>
-                    <View
-                      style={[
-                        styles.legendColor as ViewStyle,
-                        { backgroundColor: theme["color-success-500"] },
-                      ]}
+                ) : (
+                  <Text style={styles.noDataText as TextStyle}>
+                    {t("no_data_available")}
+                  </Text>
+                )}
+              </Card>
+
+              {/* Biểu đồ thời điểm bán hàng cao điểm */}
+              <Card style={styles.chartCard as ViewStyle}>
+                <Text category="h6" style={styles.chartTitle as TextStyle}>
+                  {t("peak_selling_times")}
+                </Text>
+                {hourlyData.length > 0 ? (
+                  <View style={styles.chartContainer as ViewStyle}>
+                    <BarChart
+                      data={hourlyData}
+                      width={width - 80}
+                      height={220}
+                      spacing={20}
+                      barWidth={30}
+                      noOfSections={5}
+                      barBorderRadius={4}
+                      initialSpacing={10}
+                      yAxisTextStyle={{ color: theme["text-hint-color"] }}
+                      showVerticalLines
+                      verticalLinesColor={theme["color-basic-400"]}
+                      yAxisColor={theme["color-basic-500"]}
+                      xAxisColor={theme["color-basic-500"]}
+                      rulesColor={theme["color-basic-400"]}
+                      rulesType="solid"
+                      xAxisLabelTextStyle={{ color: theme["text-hint-color"] }}
                     />
-                    <Text style={styles.legendText as TextStyle}>
-                      {t("take_away")}:{" "}
-                      {Intl.NumberFormat("vi-VN", {
-                        style: "currency",
-                        currency: "VND",
-                      }).format(takeAwayRevenue)}
-                    </Text>
                   </View>
-                  <View style={styles.legendItem as ViewStyle}>
-                    <View
-                      style={[
-                        styles.legendColor as ViewStyle,
-                        { backgroundColor: theme["color-info-500"] },
-                      ]}
-                    />
-                    <Text style={styles.legendText as TextStyle}>
-                      {t("delivery")}:{" "}
-                      {Intl.NumberFormat("vi-VN", {
-                        style: "currency",
-                        currency: "VND",
-                      }).format(deliveryRevenue)}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            ) : (
-              <Text style={styles.noDataText as TextStyle}>
-                {t("no_data_available")}
-              </Text>
-            )}
-          </Card>
-          {/* Biểu đồ thời điểm bán hàng cao điểm */}
-          <Card style={styles.chartCard as ViewStyle}>
-            <Text category="h6" style={styles.chartTitle as TextStyle}>
-              {t("peak_selling_times")}
-            </Text>
-            {hourlyData.length > 0 ? (
-              <View style={styles.chartContainer as ViewStyle}>
-                <BarChart
-                  data={hourlyData}
-                  width={width - 80}
-                  height={220}
-                  spacing={20}
-                  barWidth={30}
-                  noOfSections={5}
-                  barBorderRadius={4}
-                  initialSpacing={10}
-                  yAxisTextStyle={{ color: theme["text-hint-color"] }}
-                  // Xóa xAxisTextStyle
-                  showVerticalLines
-                  verticalLinesColor={theme["color-basic-400"]}
-                  yAxisColor={theme["color-basic-500"]}
-                  xAxisColor={theme["color-basic-500"]}
-                  rulesColor={theme["color-basic-400"]}
-                  rulesType="solid"
-                  xAxisLabelTextStyle={{ color: theme["text-hint-color"] }}
-                />
-              </View>
-            ) : (
-              <Text style={styles.noDataText as TextStyle}>
-                {t("no_data_available")}
-              </Text>
-            )}
-          </Card>
+                ) : (
+                  <Text style={styles.noDataText as TextStyle}>
+                    {t("no_data_available")}
+                  </Text>
+                )}
+              </Card>
+            </>
+          )}
         </ScrollView>
       )}
     </Layout>
@@ -962,6 +1473,11 @@ const StatisticScreen = () => {
 };
 
 const styleSheet = StyleService.create({
+  statsContainer: {
+    marginBottom: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
   profitCard: {
     backgroundColor: "color-success-100",
   },
@@ -985,14 +1501,7 @@ const styleSheet = StyleService.create({
     flex: 1,
     padding: 16,
   },
-  orderDetails: {
-    marginVertical: 16,
-  },
-  orderCard: {
-    marginBottom: 16,
-    borderRadius: 16,
-    backgroundColor: "color-info-100",
-  },
+
   maxCard: {
     backgroundColor: "color-primary-100",
   },
@@ -1016,10 +1525,7 @@ const styleSheet = StyleService.create({
   todayCard: {
     backgroundColor: "color-success-100",
   },
-  statLabel: {
-    marginBottom: 8,
-    color: "text-hint-color",
-  },
+
   statValue: {
     color: "text-basic-color",
     fontSize: 18,
@@ -1044,6 +1550,12 @@ const styleSheet = StyleService.create({
     borderRadius: 8,
     backgroundColor: "background-basic-color-2",
   },
+  headerActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 8,
+    marginBottom: 8,
+  } as ViewStyle,
   totalOrderCard: {
     marginBottom: 16,
     borderRadius: 16,
@@ -1094,11 +1606,7 @@ const styleSheet = StyleService.create({
     alignItems: "center",
     paddingVertical: 10,
   },
-  noDataText: {
-    textAlign: "center",
-    padding: 20,
-    color: "text-hint-color",
-  },
+
   tooltipContainer: {
     backgroundColor: "background-basic-color-1",
     padding: 8,
@@ -1146,6 +1654,333 @@ const styleSheet = StyleService.create({
   },
   legendText: {
     fontSize: 12,
+  },
+  customDateContainer: {
+    padding: 16,
+    backgroundColor: "background-basic-color-2",
+    borderRadius: 8,
+    marginTop: 8,
+  } as ViewStyle,
+  datePickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  } as ViewStyle,
+  datePicker: {
+    flex: 1,
+    marginLeft: 8,
+  } as ViewStyle,
+  applyButton: {
+    marginTop: 8,
+  } as ViewStyle,
+
+  summaryContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 24,
+  },
+  summaryCard: {
+    flex: 1,
+    margin: 4,
+    padding: 16,
+    borderRadius: 16,
+    alignItems: "center",
+    backgroundColor: "background-basic-color-1",
+    shadowColor: "color-basic-transparent-300",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  summaryIcon: {
+    width: 32,
+    height: 32,
+    marginBottom: 8,
+  },
+  summaryLabel: {
+    color: "text-hint-color",
+    marginBottom: 4,
+  },
+  summaryValue: {
+    fontWeight: "bold",
+  },
+
+  orderListContainer: {
+    maxHeight: 400,
+  },
+  returnOrderCard: {
+    marginBottom: 12,
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: "color-danger-500",
+    backgroundColor: "background-basic-color-1",
+    shadowColor: "color-basic-transparent-200",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  orderHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  orderIdContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  orderIcon: {
+    width: 20,
+    height: 20,
+    marginRight: 8,
+  },
+  orderId: {
+    fontWeight: "bold",
+  },
+  orderAmount: {
+    borderRadius: 16,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: "color-danger-100",
+  },
+
+  orderDivider: {
+    backgroundColor: "color-basic-300",
+  },
+
+  orderDateContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  detailIcon: {
+    width: 16,
+    height: 16,
+    marginRight: 8,
+  },
+  orderDate: {
+    fontSize: 12,
+  },
+  reasonContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  reasonText: {
+    flex: 1,
+    flexWrap: "wrap",
+  },
+  emptyContainer: {
+    padding: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyIcon: {
+    width: 48,
+    height: 48,
+    marginBottom: 16,
+    opacity: 0.5,
+  },
+
+  // Nâng cấp các styles hiện tại
+  noDataText: {
+    textAlign: "center",
+    padding: 20,
+    color: "text-hint-color",
+    fontStyle: "italic",
+  },
+  reportCard: {
+    borderRadius: 16,
+    marginVertical: 8,
+    overflow: "hidden",
+    padding: 0,
+  },
+  reportTitle: {
+    textAlign: "center",
+    fontWeight: "bold",
+    paddingVertical: 16,
+    backgroundColor: "color-primary-100",
+    color: "color-primary-700",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  statsOverview: {
+    flexDirection: "row",
+    paddingHorizontal: 12,
+    paddingVertical: 16,
+    backgroundColor: "background-basic-color-1",
+  },
+  statCard: {
+    flex: 1,
+    alignItems: "center",
+    padding: 16,
+    margin: 4,
+    backgroundColor: "white",
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  iconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  statLabel: {
+    color: "text-hint-color",
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    backgroundColor: "background-basic-color-2",
+  },
+  sectionTitle: {
+    fontWeight: "600",
+  },
+  orderList: {
+    padding: 12,
+  },
+  orderCard: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  orderCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  orderIdWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "color-primary-100",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  orderIdText: {
+    color: "color-primary-700",
+    fontWeight: "bold",
+  },
+  amountBadge: {
+    backgroundColor: "color-danger-100",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  amountText: {
+    color: "color-danger-700",
+    fontWeight: "600",
+    fontSize: 13,
+  },
+  orderDetails: {
+    paddingHorizontal: 4,
+  },
+  detailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 40,
+    backgroundColor: "background-basic-color-1",
+  },
+  // Thêm vào styleSheet
+  filterContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center", // thêm dòng này
+    marginTop: 8,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+    width: "100%", // thêm dòng này
+  },
+  backdrop: {
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  modalContainer: {
+    width: "90%",
+    maxWidth: 360,
+  },
+  modalCard: {
+    padding: 16,
+  },
+  modalTitle: {
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  modalButtonContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 16,
+  },
+  modalButton: {
+    flex: 1,
+    marginHorizontal: 4,
+  },
+  reportHeader: {
+    padding: 16,
+    backgroundColor: "color-primary-100",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  actionButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  actionButton: {
+    minWidth: 120,
+  },
+  dateRangeText: {
+    textAlign: "center",
+
+    marginTop: 8,
+    paddingVertical: 4,
+    backgroundColor: "background-basic-color-2",
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    alignSelf: "center",
+    color: "text-basic-color",
+    fontWeight: "bold",
+  },
+  datePickerModal: {
+    padding: 16,
+    width: width - 40,
+    borderRadius: 8,
+  },
+  modalHeader: {
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 20,
   },
 });
 

@@ -12,11 +12,12 @@ import { Layout, Text, Card, Icon } from "@ui-kitten/components";
 import { FloatingAction } from "react-native-floating-action";
 import { StyleService, useStyleSheet } from "@ui-kitten/components";
 import { useRecoilValue } from "recoil";
-// Sửa dòng import đầu tiên
 import React, { useEffect, useState } from "react";
-// Thêm import này
 import { allProductsAtom } from "../states";
-// Định nghĩa interface Product
+import { LinearGradient } from "expo-linear-gradient";
+import Animated, { FadeInDown } from "react-native-reanimated";
+import { TouchableOpacity } from "react-native-gesture-handler";
+
 interface Product {
   $id: string;
   name: string;
@@ -29,7 +30,7 @@ interface Product {
   minStock?: number;
   description?: string;
 }
-// Định nghĩa kiểu cho navigation prop
+
 type RootStackParamList = {
   CreateOrderScreen: {
     title: string;
@@ -45,10 +46,8 @@ type RootStackParamList = {
   WarehouseScreen: undefined;
 };
 
-// Định nghĩa kiểu cho navigation prop
 type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList>;
 
-// Định nghĩa kiểu cho component props
 type HomeScreenProps = {
   navigation: HomeScreenNavigationProp;
 };
@@ -60,7 +59,6 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
   const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
 
   useEffect(() => {
-    // Lọc ra các sản phẩm có tồn kho thấp
     const productsWithLowStock = allProducts.filter(
       (product) =>
         product.stock !== undefined &&
@@ -69,6 +67,7 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
     );
     setLowStockProducts(productsWithLowStock);
   }, [allProducts]);
+
   const allCategoryAtom = [
     {
       title: t("create_order"),
@@ -98,6 +97,13 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
       screenName: "ManageTableScreen",
       method: "manage",
     },
+    {
+      title: t("warehouse_management"),
+      id: "warehouse",
+      icon: "archive-outline",
+      screenName: "WarehouseScreen",
+      method: "manage",
+    },
   ];
 
   const actions = [
@@ -115,81 +121,154 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
     },
   ];
 
-  const renderCategoryCard = (item: any) => (
-    <Card
-      style={styles.card as ViewStyle}
-      onPress={() => navigation.navigate(item.screenName)}
+  const renderCategoryCard = (item: any, index: number) => (
+    <Animated.View
+      entering={FadeInDown.delay(index * 100)}
+      style={styles.cardWrapper as ViewStyle}
     >
-      <Icon
-        style={styles.cardIcon}
-        fill="#3366FF"
-        name={item.icon}
-        width={32}
-        height={32}
-      />
-      <Text category="h6" style={styles.cardTitle as TextStyle}>
-        {item.title}
-      </Text>
-    </Card>
+      <TouchableOpacity
+        onPress={() => navigation.navigate(item.screenName)}
+        activeOpacity={0.7}
+      >
+        <LinearGradient
+          colors={getGradientColors(index)}
+          style={styles.card as ViewStyle}
+        >
+          <View style={styles.cardContent as ViewStyle}>
+            <View style={styles.iconContainer as ViewStyle}>
+              <Icon
+                style={styles.cardIcon}
+                fill="#FFFFFF"
+                name={item.icon}
+                width={32}
+                height={32}
+              />
+            </View>
+            <Text category="h6" style={styles.cardTitle as TextStyle}>
+              {item.title}
+            </Text>
+          </View>
+        </LinearGradient>
+      </TouchableOpacity>
+    </Animated.View>
   );
+
+  const getGradientColors = (index: number): readonly [string, string] => {
+    const gradients: readonly [string, string][] = [
+      ["#FF6B6B", "#FF8E8E"],
+      ["#4ECDC4", "#45B7AF"],
+      ["#6C5CE7", "#8C7AE6"],
+      ["#FDA7DF", "#D980FA"],
+      ["#A8E6CF", "#88D7B5"],
+    ];
+    return gradients[index % gradients.length];
+  };
 
   return (
     <Layout style={styles.rootContainer as ViewStyle}>
-      <View style={styles.container as ViewStyle}>
-        {allCategoryAtom.map((item, index) => (
-          <View key={item.id} style={styles.cardWrapper as ViewStyle}>
-            {renderCategoryCard(item)}
-          </View>
-        ))}
-        {/* Thêm phần cảnh báo tồn kho */}
-        {lowStockProducts.length > 0 && (
-          <Card style={styles.alertCard as ViewStyle}>
-            <Text category="h6" status="warning">
-              {t("stock_alerts")} ({lowStockProducts.length})
-            </Text>
-            <ScrollView style={styles.alertScroll as ViewStyle} horizontal>
-              {lowStockProducts.map((product) => (
-                <Card
-                  key={product.$id}
-                  style={styles.alertItem as ViewStyle}
-                  onPress={() => navigation.navigate("WarehouseScreen")}
+      <LinearGradient
+        colors={["#f8f9fa", "#e9ecef"]}
+        style={styles.gradient as ViewStyle}
+      >
+        <ScrollView
+          style={styles.scrollView as ViewStyle}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container as ViewStyle}>
+            <View style={styles.cardsContainer as ViewStyle}>
+              {allCategoryAtom.map((item, index) =>
+                renderCategoryCard(item, index)
+              )}
+            </View>
+
+            {lowStockProducts.length > 0 && (
+              <Animated.View
+                entering={FadeInDown.delay(300)}
+                style={styles.alertContainer as ViewStyle}
+              >
+                <LinearGradient
+                  colors={["#FFF3E0", "#FFE0B2"]}
+                  style={styles.alertCard as ViewStyle}
                 >
-                  <Text category="s1">{product.name}</Text>
-                  <Text
-                    category="c1"
-                    status={(product.stock ?? 0) === 0 ? "danger" : "warning"}
+                  <View style={styles.alertHeader as ViewStyle}>
+                    <Icon
+                      name="alert-triangle-outline"
+                      fill="#FF9800"
+                      width={24}
+                      height={24}
+                    />
+                    <Text
+                      category="h6"
+                      status="warning"
+                      style={styles.alertTitle as TextStyle}
+                    >
+                      {t("stock_alerts")} ({lowStockProducts.length})
+                    </Text>
+                  </View>
+                  <ScrollView
+                    style={styles.alertScroll as ViewStyle}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
                   >
-                    {(product.stock ?? 0) === 0
-                      ? t("out_of_stock")
-                      : t("low_stock")}
-                  </Text>
-                  <Text category="c1">
-                    {t("stock")}: {product.stock ?? 0}
-                  </Text>
-                </Card>
-              ))}
-            </ScrollView>
-          </Card>
-        )}
-      </View>
+                    {lowStockProducts.map((product) => (
+                      <TouchableOpacity
+                        key={product.$id}
+                        onPress={() => navigation.navigate("WarehouseScreen")}
+                      >
+                        <LinearGradient
+                          colors={["#FFFFFF", "#F5F5F5"]}
+                          style={styles.alertItem as ViewStyle}
+                        >
+                          <Text
+                            category="s1"
+                            style={styles.productName as TextStyle}
+                          >
+                            {product.name}
+                          </Text>
+                          <View style={styles.stockInfo as ViewStyle}>
+                            <Text
+                              category="c1"
+                              style={[
+                                styles.stockStatus as TextStyle,
+                                (product.stock ?? 0) === 0
+                                  ? (styles.outOfStock as TextStyle)
+                                  : (styles.lowStock as TextStyle),
+                              ]}
+                            >
+                              {(product.stock ?? 0) === 0
+                                ? t("out_of_stock")
+                                : t("low_stock")}
+                            </Text>
+                            <Text
+                              category="c1"
+                              style={styles.stockCount as TextStyle}
+                            >
+                              {t("stock")}: {product.stock ?? 0}
+                            </Text>
+                          </View>
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                  ``
+                </LinearGradient>
+              </Animated.View>
+            )}
+          </View>
+        </ScrollView>
+      </LinearGradient>
 
       <FloatingAction
         actions={actions}
-        color="#3366FF"
-        overlayColor="rgba(68, 68, 68, 0.6)"
-        onPressItem={(screenName: string | undefined) => {
-          if (
-            screenName === "CreateOrderScreen" ||
-            screenName === "CreateProductScreen"
-          ) {
-            navigation.navigate(screenName, {
-              title:
-                screenName === "CreateOrderScreen"
-                  ? t("create_order")
-                  : t("create_product"),
-              method: "create",
-            });
-          }
+        color="#6C5CE7"
+        overlayColor="rgba(68, 68, 68, 0.7)"
+        buttonSize={65}
+        distanceToEdge={20}
+        shadow={{
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
         }}
       />
     </Layout>
@@ -199,20 +278,19 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
 const styleSheet = StyleService.create({
   rootContainer: {
     flex: 1,
-    backgroundColor: "background-basic-color-1",
-  } as ViewStyle,
-  header: {
-    padding: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: "border-basic-color-3",
-  } as ViewStyle,
-  headerTitle: {
-    marginBottom: 8,
-    fontWeight: "bold",
   },
+  gradient: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+
   container: {
     flex: 1,
     padding: 16,
+  },
+  cardsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
@@ -220,40 +298,121 @@ const styleSheet = StyleService.create({
   cardWrapper: {
     width: "48%",
     marginBottom: 16,
+    height: 140,
   },
   card: {
-    borderRadius: 12,
-    padding: 16,
-    elevation: 2,
+    borderRadius: 16,
+    padding: 20,
+    backgroundColor: "rgba(255,255,255,0.8)",
+    backdropFilter: "blur(10px)",
+    alignItems: "center",
+    justifyContent: "center",
+    height: "100%",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    alignItems: "center", // Thêm dòng này để căn giữa tất cả nội dung trong card
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
   cardIcon: {
     marginBottom: 12,
-    alignSelf: "center",
+    transform: [{ scale: 1.2 }],
   },
   cardTitle: {
     textAlign: "center",
     fontWeight: "600",
-  },
-
-  alertCard: {
+    color: "#2E3A59",
+    flexWrap: "wrap",
     width: "100%",
-    marginTop: 16,
-    marginBottom: 8,
-    padding: 12,
+  },
+  alertCard: {
+    marginTop: 24,
+    borderRadius: 16,
+    padding: 16,
+    backgroundColor: "rgba(255,255,255,0.8)",
+    backdropFilter: "blur(10px)",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  alertTitle: {
+    marginBottom: 12,
+    fontWeight: "600",
   },
   alertScroll: {
     flexGrow: 0,
     marginTop: 8,
   },
   alertItem: {
-    width: 150,
-    marginRight: 8,
-    padding: 8,
+    width: 160,
+    marginRight: 12,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.8)",
+    backdropFilter: "blur(10px)",
+  },
+  headerContainer: {
+    padding: 20,
+    paddingTop: 40,
+  },
+
+  cardContent: {
+    flex: 1,
+    justifyContent: "space-between",
+  },
+  iconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 22,
+    alignSelf: "center", // Thêm dòng này
+  },
+  alertHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+
+  productName: {
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  stockInfo: {
+    flexDirection: "column",
+    gap: 4,
+  },
+  stockStatus: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    overflow: "hidden",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  outOfStock: {
+    backgroundColor: "#FFE0E0",
+    color: "#FF4D4D",
+  },
+  lowStock: {
+    backgroundColor: "#FFF3E0",
+    color: "#FF9800",
+  },
+  stockCount: {
+    color: "#666666",
+  },
+  alertContainer: {
+    marginHorizontal: 15,
   },
 });
 

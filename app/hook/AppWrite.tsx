@@ -46,6 +46,7 @@ const DEFAULT_USER_PREFS = {
   NAME: "",
   PHONE: "",
   ADDRESS: "",
+  returns: "returns",
 };
 
 export const COLLECTION_IDS = {
@@ -53,6 +54,7 @@ export const COLLECTION_IDS = {
   categories: "categories",
   orders: "orders",
   tables: "tables",
+  returns: "returns",
   // warehouse: "warehouse",
   // store: 'store'
 };

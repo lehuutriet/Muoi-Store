@@ -77,11 +77,6 @@ const SettingScreen: React.FC<SettingScreenProps> = ({ onLoggedOut }) => {
           title={t("connect_ble_printer")}
           onPress={() => RootNavigation.navigate("PrinterScreen")}
         />
-        <SettingItem
-          icon="archive"
-          title={t("warehouse_management")}
-          onPress={() => RootNavigation.navigate("WarehouseScreen")}
-        />
       </Layout>
 
       {/* App Settings */}
