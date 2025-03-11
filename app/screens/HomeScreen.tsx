@@ -6,17 +6,41 @@ import {
   ViewStyle,
   TextStyle,
   ScrollView,
+  TouchableOpacity,
+  RefreshControl,
+  ImageBackground,
+  ImageStyle,
 } from "react-native";
 import { StackNavigationProp } from "@react-navigation/stack";
-import { Layout, Text, Card, Icon } from "@ui-kitten/components";
+import {
+  Layout,
+  Text,
+  Card,
+  Icon,
+  Button,
+  Avatar,
+  Divider,
+} from "@ui-kitten/components";
 import { FloatingAction } from "react-native-floating-action";
 import { StyleService, useStyleSheet } from "@ui-kitten/components";
 import { useRecoilValue } from "recoil";
-import React, { useEffect, useState } from "react";
-import { allProductsAtom } from "../states";
+import React, { useEffect, useState, useCallback, useContext } from "react";
+import { allProductsAtom, userAtom } from "../states";
 import { LinearGradient } from "expo-linear-gradient";
-import Animated, { FadeInDown } from "react-native-reanimated";
-import { TouchableOpacity } from "react-native-gesture-handler";
+import Animated, {
+  FadeInDown,
+  FadeIn,
+  FadeInRight,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from "react-native-reanimated";
+import { useDatabases, COLLECTION_IDS } from "../hook/AppWrite";
+import { Query } from "appwrite";
+import { useFocusEffect } from "@react-navigation/native";
+import { DrawerContext } from "../contexts/AppContext";
+
+const { width } = Dimensions.get("window");
 
 interface Product {
   $id: string;
@@ -44,6 +68,7 @@ type RootStackParamList = {
   ManageProductScreen: undefined;
   ManageTableScreen: undefined;
   WarehouseScreen: undefined;
+  StatisticScreen: undefined;
 };
 
 type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList>;
@@ -56,7 +81,41 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
   const styles = useStyleSheet(styleSheet);
   const { t } = useTranslation();
   const allProducts = useRecoilValue<Product[]>(allProductsAtom);
+  const userInfo = useRecoilValue(userAtom);
   const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
+  const [todayRevenue, setTodayRevenue] = useState(0);
+  const [todayOrders, setTodayOrders] = useState(0);
+  const [unpaidOrders, setUnpaidOrders] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const [greeting, setGreeting] = useState("");
+  const animatedValue = useSharedValue(0);
+  const { getAllItem } = useDatabases();
+  const { toggleDrawer } = useContext(DrawerContext);
+  // Animation for cards
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateY: withSpring(animatedValue.value) }],
+    };
+  });
+
+  useEffect(() => {
+    animatedValue.value = 0;
+    const timer = setTimeout(() => {
+      animatedValue.value = -10;
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const hours = new Date().getHours();
+    if (hours < 12) {
+      setGreeting(t("good_morning"));
+    } else if (hours < 18) {
+      setGreeting(t("good_afternoon"));
+    } else {
+      setGreeting(t("good_evening"));
+    }
+  }, [t]);
 
   useEffect(() => {
     const productsWithLowStock = allProducts.filter(
@@ -68,41 +127,99 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
     setLowStockProducts(productsWithLowStock);
   }, [allProducts]);
 
-  const allCategoryAtom = [
+  const fetchTodayData = useCallback(async () => {
+    try {
+      // Lấy ngày hiện tại với thời gian 00:00:00
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const todayStart = today.toISOString();
+      const todayEnd = new Date(today);
+      todayEnd.setHours(23, 59, 59, 999);
+
+      // Lấy tất cả đơn hàng hôm nay
+      const todayOrdersData = await getAllItem(COLLECTION_IDS.orders, [
+        Query.greaterThanEqual("$createdAt", todayStart),
+        Query.lessThanEqual("$createdAt", todayEnd.toISOString()),
+      ]);
+
+      // Lấy đơn hàng chưa thanh toán
+      const unpaidOrdersData = await getAllItem(COLLECTION_IDS.orders, [
+        Query.equal("status", "unpaid"),
+      ]);
+
+      // Tính doanh thu ngày hôm nay (chỉ từ các đơn đã thanh toán)
+      let revenue = 0;
+      let completedOrders = 0;
+
+      todayOrdersData.forEach((order: any) => {
+        if (order.status === "cash" || order.status === "transfer") {
+          revenue += Number(order.total) || 0;
+          completedOrders++;
+        }
+      });
+
+      setTodayRevenue(revenue);
+      setTodayOrders(todayOrdersData.length);
+      setUnpaidOrders(unpaidOrdersData.length);
+    } catch (error) {
+      console.error("Error fetching today's data:", error);
+    }
+  }, [getAllItem]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchTodayData();
+      return () => {};
+    }, [fetchTodayData])
+  );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchTodayData();
+    setRefreshing(false);
+  }, [fetchTodayData]);
+
+  const featureButtons = [
     {
       title: t("create_order"),
-      id: "create_order",
-      icon: "calendar-outline",
-      screenName: "CreateOrderScreen",
-      method: "create",
+      icon: "shopping-cart-outline",
+      color: ["#FF6B6B", "#FF8E8E"] as const,
+      onPress: () =>
+        navigation.navigate("CreateOrderScreen", {
+          title: t("create_order"),
+          method: "create",
+        }),
     },
     {
       title: t("manage_order"),
-      id: "manage_order",
-      icon: "checkmark-square-outline",
-      screenName: "ManageOrderScreen",
-      method: "manage",
+      icon: "list-outline",
+      color: ["#4ECDC4", "#45B7AF"] as const,
+      onPress: () => navigation.navigate("ManageOrderScreen"),
     },
     {
       title: t("manage_product"),
-      id: "manage_product",
-      icon: "layout-outline",
-      screenName: "ManageProductScreen",
-      method: "manage",
+      icon: "cube-outline",
+      color: ["#6C5CE7", "#8C7AE6"] as const,
+      onPress: () => navigation.navigate("ManageProductScreen"),
     },
     {
       title: t("manage_table"),
-      id: "manage_table",
-      icon: "monitor-outline",
-      screenName: "ManageTableScreen",
-      method: "manage",
+      icon: "grid-outline",
+      color: ["#FDA7DF", "#D980FA"] as const,
+      onPress: () => navigation.navigate("ManageTableScreen"),
     },
     {
-      title: t("warehouse_management"),
-      id: "warehouse",
+      title: t("warehouse"),
       icon: "archive-outline",
-      screenName: "WarehouseScreen",
-      method: "manage",
+      color: ["#A8E6CF", "#88D7B5"] as const,
+      onPress: () => navigation.navigate("WarehouseScreen"),
+    },
+    {
+      title: t("statistic"),
+      icon: "pie-chart-outline",
+      color: ["#FFC75F", "#F9B248"] as const,
+      onPress: () => navigation.navigate("StatisticScreen"),
     },
   ];
 
@@ -121,149 +238,252 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
     },
   ];
 
-  const renderCategoryCard = (item: any, index: number) => (
-    <Animated.View
-      entering={FadeInDown.delay(index * 100)}
-      style={styles.cardWrapper as ViewStyle}
-    >
-      <TouchableOpacity
-        onPress={() => navigation.navigate(item.screenName)}
-        activeOpacity={0.7}
-      >
-        <LinearGradient
-          colors={getGradientColors(index)}
-          style={styles.card as ViewStyle}
-        >
-          <View style={styles.cardContent as ViewStyle}>
-            <View style={styles.iconContainer as ViewStyle}>
-              <Icon
-                style={styles.cardIcon}
-                fill="#FFFFFF"
-                name={item.icon}
-                width={32}
-                height={32}
-              />
-            </View>
-            <Text category="h6" style={styles.cardTitle as TextStyle}>
-              {item.title}
-            </Text>
-          </View>
-        </LinearGradient>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-
-  const getGradientColors = (index: number): readonly [string, string] => {
-    const gradients: readonly [string, string][] = [
-      ["#FF6B6B", "#FF8E8E"],
-      ["#4ECDC4", "#45B7AF"],
-      ["#6C5CE7", "#8C7AE6"],
-      ["#FDA7DF", "#D980FA"],
-      ["#A8E6CF", "#88D7B5"],
-    ];
-    return gradients[index % gradients.length];
-  };
-
   return (
     <Layout style={styles.rootContainer as ViewStyle}>
       <LinearGradient
-        colors={["#f8f9fa", "#e9ecef"]}
+        colors={["#f8f9fa", "#e9ecef"] as const}
         style={styles.gradient as ViewStyle}
       >
         <ScrollView
           style={styles.scrollView as ViewStyle}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         >
-          <View style={styles.container as ViewStyle}>
-            <View style={styles.cardsContainer as ViewStyle}>
-              {allCategoryAtom.map((item, index) =>
-                renderCategoryCard(item, index)
-              )}
+          {/* Header Section with Greeting */}
+          <Animated.View
+            entering={FadeIn.duration(800)}
+            style={styles.headerContainer as ViewStyle}
+          >
+            <View style={styles.headerContent as ViewStyle}>
+              <View>
+                <Text category="s1" style={styles.greetingText as TextStyle}>
+                  {greeting}
+                </Text>
+                <Text category="h4" style={styles.storeNameText as TextStyle}>
+                  {userInfo.STORE_NAME || t("shop_name")}
+                </Text>
+              </View>
             </View>
+          </Animated.View>
 
-            {lowStockProducts.length > 0 && (
-              <Animated.View
-                entering={FadeInDown.delay(300)}
-                style={styles.alertContainer as ViewStyle}
-              >
-                <LinearGradient
-                  colors={["#FFF3E0", "#FFE0B2"]}
-                  style={styles.alertCard as ViewStyle}
+          {/* Quick Stats Cards */}
+          <Animated.View
+            entering={FadeInDown.delay(200)}
+            style={[styles.statsContainer as ViewStyle, animatedStyle]}
+          >
+            <Card style={[styles.statCard, styles.revenueCard] as ViewStyle[]}>
+              <View style={styles.statCardContent as ViewStyle}>
+                <Icon
+                  name="trending-up-outline"
+                  fill="#2F80ED"
+                  style={styles.statIcon as ViewStyle}
+                />
+                <View>
+                  <Text category="c1" style={styles.statLabel as TextStyle}>
+                    {t("today_revenue1")}
+                  </Text>
+                  <Text category="h6" style={styles.statValue as TextStyle}>
+                    {new Intl.NumberFormat("vi-VN", {
+                      maximumFractionDigits: 0,
+                    }).format(todayRevenue) + "đ"}
+                  </Text>
+                </View>
+              </View>
+            </Card>
+
+            <Card style={[styles.statCard, styles.ordersCard] as ViewStyle[]}>
+              <View style={styles.statCardContent as ViewStyle}>
+                <Icon
+                  name="shopping-bag-outline"
+                  fill="#FF9800"
+                  style={styles.statIcon as ViewStyle}
+                />
+                <View>
+                  <Text category="c1" style={styles.statLabel as TextStyle}>
+                    {t("today_orders1")}
+                  </Text>
+                  <Text category="h6" style={styles.statValue as TextStyle}>
+                    {todayOrders}
+                  </Text>
+                </View>
+              </View>
+            </Card>
+
+            <Card style={[styles.statCard, styles.unpaidCard] as ViewStyle[]}>
+              <View style={styles.statCardContent as ViewStyle}>
+                <Icon
+                  name="alert-triangle-outline"
+                  fill="#F2994A"
+                  style={styles.statIcon as ViewStyle}
+                />
+                <View>
+                  <Text category="c1" style={styles.statLabel as TextStyle}>
+                    {t("unpaid_orders1")}
+                  </Text>
+                  <Text category="h6" style={styles.statValue as TextStyle}>
+                    {unpaidOrders}
+                  </Text>
+                </View>
+              </View>
+            </Card>
+          </Animated.View>
+
+          {/* Main Features Grid */}
+          <Animated.View
+            entering={FadeInDown.delay(300)}
+            style={styles.featuresContainer as ViewStyle}
+          >
+            <Text category="h6" style={styles.sectionTitle as TextStyle}>
+              {t("features")}
+            </Text>
+            <View style={styles.featuresGrid as ViewStyle}>
+              {featureButtons.map((feature, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.featureButton as ViewStyle}
+                  onPress={feature.onPress}
+                  activeOpacity={0.7}
                 >
-                  <View style={styles.alertHeader as ViewStyle}>
-                    <Icon
-                      name="alert-triangle-outline"
-                      fill="#FF9800"
-                      width={24}
-                      height={24}
-                    />
-                    <Text
-                      category="h6"
-                      status="warning"
-                      style={styles.alertTitle as TextStyle}
-                    >
-                      {t("stock_alerts")} ({lowStockProducts.length})
-                    </Text>
-                  </View>
-                  <ScrollView
-                    style={styles.alertScroll as ViewStyle}
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
+                  <LinearGradient
+                    colors={feature.color}
+                    style={styles.featureGradient as ViewStyle}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
                   >
-                    {lowStockProducts.map((product) => (
-                      <TouchableOpacity
-                        key={product.$id}
-                        onPress={() => navigation.navigate("WarehouseScreen")}
-                      >
-                        <LinearGradient
-                          colors={["#FFFFFF", "#F5F5F5"]}
-                          style={styles.alertItem as ViewStyle}
-                        >
-                          <Text
-                            category="s1"
-                            style={styles.productName as TextStyle}
+                    <Icon
+                      name={feature.icon}
+                      fill="white"
+                      style={styles.featureIcon as ViewStyle}
+                    />
+                  </LinearGradient>
+                  <Text category="s2" style={styles.featureText as TextStyle}>
+                    {feature.title}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </Animated.View>
+
+          {/* Low Stock Alert Section */}
+          {lowStockProducts.length > 0 && (
+            <Animated.View
+              entering={FadeInDown.delay(400)}
+              style={styles.alertsContainer as ViewStyle}
+            >
+              <View style={styles.alertsHeader as ViewStyle}>
+                <Icon
+                  name="alert-triangle-outline"
+                  fill="#FF3D71"
+                  style={{ width: 24, height: 24, marginRight: 8 }}
+                />
+                <Text category="h6" style={styles.alertsTitle as TextStyle}>
+                  {t("stock_alerts")} ({lowStockProducts.length})
+                </Text>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.alertsScroll as ViewStyle}
+              >
+                {lowStockProducts.map((product) => (
+                  <TouchableOpacity
+                    key={product.$id}
+                    onPress={() => navigation.navigate("WarehouseScreen")}
+                    style={styles.alertCard as ViewStyle}
+                  >
+                    <View style={styles.alertCardContent as ViewStyle}>
+                      <View style={styles.alertImageContainer as ViewStyle}>
+                        {product.photoUrl ? (
+                          <ImageBackground
+                            source={{ uri: product.photoUrl }}
+                            style={styles.alertImage as ViewStyle}
+                            imageStyle={{ borderRadius: 8 }}
+                          />
+                        ) : (
+                          <View
+                            style={styles.alertImagePlaceholder as ViewStyle}
                           >
-                            {product.name}
-                          </Text>
-                          <View style={styles.stockInfo as ViewStyle}>
-                            <Text
-                              category="c1"
-                              style={[
-                                styles.stockStatus as TextStyle,
-                                (product.stock ?? 0) === 0
-                                  ? (styles.outOfStock as TextStyle)
-                                  : (styles.lowStock as TextStyle),
-                              ]}
-                            >
-                              {(product.stock ?? 0) === 0
-                                ? t("out_of_stock")
-                                : t("low_stock")}
-                            </Text>
-                            <Text
-                              category="c1"
-                              style={styles.stockCount as TextStyle}
-                            >
-                              {t("stock")}: {product.stock ?? 0}
-                            </Text>
+                            <Icon
+                              name="image-outline"
+                              fill="#CED4DA"
+                              style={{ width: 24, height: 24 }}
+                            />
                           </View>
-                        </LinearGradient>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                  ``
-                </LinearGradient>
-              </Animated.View>
-            )}
-          </View>
+                        )}
+                      </View>
+                      <Text
+                        category="s1"
+                        style={styles.alertProductName as TextStyle}
+                        numberOfLines={1}
+                      >
+                        {product.name}
+                      </Text>
+                      <View style={styles.alertStockInfo as ViewStyle}>
+                        <Text
+                          status={
+                            (product.stock ?? 0) === 0 ? "danger" : "warning"
+                          }
+                          category="c1"
+                          style={styles.alertStatusText as TextStyle}
+                        >
+                          {(product.stock ?? 0) === 0
+                            ? t("out_of_stock")
+                            : t("low_stock")}
+                        </Text>
+                        <Text
+                          category="c1"
+                          style={styles.alertStockText as TextStyle}
+                        >
+                          {t("stock")}: {product.stock ?? 0} /{" "}
+                          {product.minStock ?? 0}
+                        </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <Button
+                appearance="ghost"
+                status="basic"
+                size="small"
+                accessoryRight={(props) => (
+                  <Icon {...props} name="arrow-forward-outline" />
+                )}
+                onPress={() => navigation.navigate("WarehouseScreen")}
+                style={styles.viewAllButton as ViewStyle}
+              >
+                {t("view_all")}
+              </Button>
+            </Animated.View>
+          )}
+
+          {/* Bottom padding */}
+          <View style={{ height: 100 }} />
         </ScrollView>
       </LinearGradient>
 
+      {/* Floating Action Button */}
       <FloatingAction
         actions={actions}
         color="#6C5CE7"
         overlayColor="rgba(68, 68, 68, 0.7)"
         buttonSize={65}
         distanceToEdge={20}
+        onPressItem={(name) => {
+          if (name === "CreateOrderScreen") {
+            navigation.navigate(name, {
+              title: t("create_order"),
+              method: "create",
+            });
+          } else if (name === "CreateProductScreen") {
+            navigation.navigate(name, {
+              title: t("create_product"),
+              method: "create",
+            });
+          }
+        }}
         shadow={{
           shadowColor: "#000",
           shadowOffset: { width: 0, height: 4 },
@@ -285,134 +505,197 @@ const styleSheet = StyleService.create({
   scrollView: {
     flex: 1,
   },
-
-  container: {
-    flex: 1,
-    padding: 16,
-  },
-  cardsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-  cardWrapper: {
-    width: "48%",
-    marginBottom: 16,
-    height: 140,
-  },
-  card: {
-    borderRadius: 16,
-    padding: 20,
-    backgroundColor: "rgba(255,255,255,0.8)",
-    backdropFilter: "blur(10px)",
-    alignItems: "center",
-    justifyContent: "center",
-    height: "100%",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  cardIcon: {
-    marginBottom: 12,
-    transform: [{ scale: 1.2 }],
-  },
-  cardTitle: {
-    textAlign: "center",
-    fontWeight: "600",
-    color: "#2E3A59",
-    flexWrap: "wrap",
-    width: "100%",
-  },
-  alertCard: {
-    marginTop: 24,
-    borderRadius: 16,
-    padding: 16,
-    backgroundColor: "rgba(255,255,255,0.8)",
-    backdropFilter: "blur(10px)",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  alertTitle: {
-    marginBottom: 12,
-    fontWeight: "600",
-  },
-  alertScroll: {
-    flexGrow: 0,
-    marginTop: 8,
-  },
-  alertItem: {
-    width: 160,
-    marginRight: 12,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.8)",
-    backdropFilter: "blur(10px)",
-  },
   headerContainer: {
     padding: 20,
     paddingTop: 40,
   },
+  headerContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  greetingText: {
+    color: "text-hint-color",
+    marginBottom: 4,
+  },
+  storeNameText: {
+    fontWeight: "bold",
+  },
 
-  cardContent: {
-    flex: 1,
+  statsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    marginBottom: 24,
+  },
+  statCard: {
+    width: (width - 35) / 3,
+    borderRadius: 12,
+    padding: 1,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  revenueCard: {
+    backgroundColor: "#E3F2FD",
+  },
+  ordersCard: {
+    backgroundColor: "#FFF3E0",
+  },
+  unpaidCard: {
+    backgroundColor: "#FBE9E7",
+  },
+  statCardContent: {
+    alignItems: "center",
+  },
+  statIcon: {
+    width: 28,
+    height: 28,
+    marginBottom: 8,
+  },
+  statLabel: {
+    color: "text-hint-color",
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  statValue: {
+    textAlign: "center",
+    fontWeight: "bold",
+  },
+  featuresContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    marginBottom: 16,
+    fontWeight: "600",
+  },
+  featuresGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
   },
-  iconContainer: {
+  featureButton: {
+    width: (width - 48) / 3,
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  featureGradient: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 22,
-    alignSelf: "center", // Thêm dòng này
+    marginBottom: 8,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  alertHeader: {
+  featureIcon: {
+    width: 28,
+    height: 28,
+  },
+  featureText: {
+    textAlign: "center",
+    fontSize: 12,
+  },
+  alertsContainer: {
+    marginHorizontal: 16,
+    marginBottom: 24,
+    backgroundColor: "background-basic-color-1",
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  alertsHeader: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 16,
   },
-
-  productName: {
+  alertsTitle: {
     fontWeight: "600",
+  },
+  alertsScroll: {
     marginBottom: 8,
   },
-  stockInfo: {
-    flexDirection: "column",
-    gap: 4,
-  },
-  stockStatus: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+  alertCard: {
+    width: 140,
+    marginRight: 12,
+    backgroundColor: "background-basic-color-1",
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "color-basic-transparent-200",
     overflow: "hidden",
-    fontSize: 12,
+  },
+  alertCardContent: {
+    padding: 12,
+  },
+  alertImageContainer: {
+    height: 70,
+    marginBottom: 8,
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+  alertImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
+  alertImagePlaceholder: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "color-basic-transparent-100",
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 8,
+  },
+  alertProductName: {
+    marginBottom: 4,
     fontWeight: "600",
   },
-  outOfStock: {
-    backgroundColor: "#FFE0E0",
-    color: "#FF4D4D",
+  alertStockInfo: {
+    flexDirection: "column",
   },
-  lowStock: {
-    backgroundColor: "#FFF3E0",
-    color: "#FF9800",
+  alertStatusText: {
+    borderRadius: 4,
+    fontWeight: "600",
+    marginBottom: 4,
+    fontSize: 10,
   },
-  stockCount: {
-    color: "#666666",
+  alertStockText: {
+    color: "text-hint-color",
   },
-  alertContainer: {
-    marginHorizontal: 15,
+  viewAllButton: {
+    alignSelf: "flex-end",
+  },
+  actionsContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 24,
+  },
+  actionButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  actionButton: {
+    flex: 1,
+    marginHorizontal: 4,
   },
 });
 

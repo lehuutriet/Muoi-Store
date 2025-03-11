@@ -111,8 +111,13 @@ const StatisticScreen = () => {
   const [returnReasons, setReturnReasons] = useState<PieChartData[]>([]);
 
   // Thêm "custom" vào timeFrames
-  const timeFrames = ["day", "week", "month", "custom", "returns"];
+  const timeFrames = ["general", "returns"]; // Chỉ giữ lại thống kê chung và trả hàng
   const [timeFrame, setTimeFrame] = useState(timeFrames[0]);
+
+  // Thêm state mới cho bộ lọc ngày thống kê chung
+  const [dateFilterVisible, setDateFilterVisible] = useState(false);
+  const [dateRangeText, setDateRangeText] = useState("");
+  const [periodType, setPeriodType] = useState("day"); // Thêm state để lưu loại khoảng thời gian (ngày/tuần/tháng)
 
   // Dữ liệu doanh thu theo khung giờ
   const [morningRevenue, setMorningRevenue] = useState(0); // 6h-12h
@@ -161,17 +166,17 @@ const StatisticScreen = () => {
       endDateQuery.setHours(23, 59, 59, 999);
 
       // Thiết lập thời gian bắt đầu dựa trên timeFrame
-      if (timeFrame === "day") {
+      if (periodType === "day" || timeFrame === "day") {
         startDateQuery.setHours(0, 0, 0, 0);
-      } else if (timeFrame === "week") {
+      } else if (periodType === "week" || timeFrame === "week") {
         const day = today.getDay();
         const diff = day === 0 ? 6 : day - 1;
         startDateQuery.setDate(today.getDate() - diff);
         startDateQuery.setHours(0, 0, 0, 0);
-      } else if (timeFrame === "month") {
+      } else if (periodType === "month" || timeFrame === "month") {
         startDateQuery.setDate(1);
         startDateQuery.setHours(0, 0, 0, 0);
-      } else if (timeFrame === "custom") {
+      } else if (periodType === "custom" || timeFrame === "custom") {
         // Sử dụng ngày bắt đầu và kết thúc đã chọn
         startDateQuery = new Date(startDate);
         startDateQuery.setHours(0, 0, 0, 0);
@@ -263,7 +268,12 @@ const StatisticScreen = () => {
           // Tính tổng giá trị hoàn trả
           let totalReturned = 0;
           returnedOrdersData.forEach((order: any) => {
-            totalReturned += Number(order.total) || 0;
+            // Kiểm tra các trường có thể chứa giá trị
+            const returnAmount = Number(
+              order.totalReturnAmount || order.total || 0
+            );
+            totalReturned += returnAmount;
+            console.log("Order return value:", order.$id, returnAmount); // Log để debug
           });
           setTotalReturnValue(totalReturned);
 
@@ -467,7 +477,7 @@ const StatisticScreen = () => {
   }, []);
   const handleExportCSV = async () => {
     try {
-      if (selectedIndex === 4) {
+      if (selectedIndex === 1) {
         // Định dạng dữ liệu cho báo cáo trả hàng
         const returnStatisticsData = {
           isReturnReport: true,
@@ -697,7 +707,32 @@ const StatisticScreen = () => {
 
     return result;
   };
+  const updateDateRangeText = () => {
+    if (periodType === "day") {
+      setDateRangeText(t("today"));
+    } else if (periodType === "week") {
+      setDateRangeText(t("this_week"));
+    } else if (periodType === "month") {
+      setDateRangeText(t("this_month"));
+    } else if (periodType === "custom") {
+      setDateRangeText(
+        `${startDate.toLocaleDateString("vi-VN")} - ${endDate.toLocaleDateString("vi-VN")}`
+      );
+    }
+  };
+  // Trong useEffect khởi tạo
+  useEffect(() => {
+    // Thiết lập giá trị mặc định là "ngày"
+    setPeriodType("day");
+    setTimeFrame("day");
+    setDateRangeText(t("today"));
 
+    // Khởi tạo cho tab trả hàng
+    updateReturnDateRangeText();
+
+    // Gọi loadStatistics để tải dữ liệu ban đầu
+    loadStatistics();
+  }, []);
   return (
     <Layout style={styles.mainLayout as ViewStyle}>
       <View style={styles.header as ViewStyle}>
@@ -706,20 +741,30 @@ const StatisticScreen = () => {
           selectedIndex={selectedIndex}
           onSelect={(index) => setSelectedIndex(index)}
         >
-          <Tab title={t("day")} />
-          <Tab title={t("week")} />
-          <Tab title={t("month")} />
-          <Tab title={t("custom")} />
+          <Tab title={t("statistics")} />
           <Tab title={t("returns")} />
         </TabBar>
         <View
           style={{
             flexDirection: "row",
-            justifyContent: "space-between",
+            justifyContent: "space-between", // Đảm bảo nút nằm ở hai đầu
             paddingVertical: 8,
+            paddingHorizontal: 4, // Thêm đệm ngang
           }}
         >
-          {selectedIndex === 4 && (
+          {selectedIndex === 0 ? (
+            <Button
+              size="small"
+              appearance="outline"
+              status="primary"
+              accessoryLeft={(props) => (
+                <Icon {...props} name="calendar-outline" />
+              )}
+              onPress={() => setDateFilterVisible(true)}
+            >
+              {dateRangeText || t("today")}
+            </Button>
+          ) : (
             <Button
               size="small"
               appearance="outline"
@@ -729,7 +774,7 @@ const StatisticScreen = () => {
               )}
               onPress={() => setReturnDateFilterVisible(true)}
             >
-              {t("filter_by_date")}
+              {returnDateRangeText}
             </Button>
           )}
           <Button
@@ -743,40 +788,9 @@ const StatisticScreen = () => {
             {t("export_csv")}
           </Button>
         </View>
-        {selectedIndex === 3 && (
-          <View style={styles.customDateContainer as ViewStyle}>
-            <View style={styles.datePickerRow as ViewStyle}>
-              <Text category="label">{t("start_date")}:</Text>
-              <Datepicker
-                date={startDate}
-                onSelect={(nextDate) => setStartDate(nextDate)}
-                max={endDate}
-                style={styles.datePicker as ViewStyle}
-                size="small"
-              />
-            </View>
-            <View style={styles.datePickerRow as ViewStyle}>
-              <Text category="label">{t("end_date")}:</Text>
-              <Datepicker
-                date={endDate}
-                onSelect={(nextDate) => setEndDate(nextDate)}
-                min={startDate}
-                max={new Date()}
-                style={styles.datePicker as ViewStyle}
-                size="small"
-              />
-            </View>
-            <Button
-              style={styles.applyButton as ViewStyle}
-              size="small"
-              onPress={loadStatistics}
-            >
-              {t("apply")}
-            </Button>
-          </View>
-        )}
+
         {/* Bộ lọc ngày cho tab trả hàng */}
-        {selectedIndex === 4 && (
+        {selectedIndex === 1 && (
           <View style={styles.filterContainer as ViewStyle}>
             {returnDateRangeText && (
               <Text category="s1" style={styles.dateRangeText as TextStyle}>
@@ -853,7 +867,7 @@ const StatisticScreen = () => {
         </View>
       ) : (
         <ScrollView style={styles.scrollContainer as ViewStyle}>
-          {selectedIndex === 4 ? (
+          {selectedIndex === 1 ? (
             <Card style={styles.reportCard as ViewStyle}>
               <Text category="h5" style={styles.reportTitle as TextStyle}>
                 {t("returns_report")}
@@ -1468,6 +1482,107 @@ const StatisticScreen = () => {
           )}
         </ScrollView>
       )}
+      <Modal
+        visible={dateFilterVisible}
+        backdropStyle={styles.backdrop as ViewStyle}
+        onBackdropPress={() => setDateFilterVisible(false)}
+        style={styles.modalContainer as ViewStyle}
+      >
+        <Card disabled style={styles.datePickerModal as ViewStyle}>
+          <Text category="h6" style={styles.modalHeader as TextStyle}>
+            {t("filter_by_date")}
+          </Text>
+
+          {/* Thêm phần chọn loại khoảng thời gian */}
+          <View style={styles.periodTypeContainer as ViewStyle}>
+            <Button
+              size="tiny"
+              appearance={periodType === "day" ? "filled" : "outline"}
+              onPress={() => setPeriodType("day")}
+              style={styles.periodButton as ViewStyle}
+            >
+              {t("day")}
+            </Button>
+            <Button
+              size="tiny"
+              appearance={periodType === "week" ? "filled" : "outline"}
+              onPress={() => setPeriodType("week")}
+              style={styles.periodButton as ViewStyle}
+            >
+              {t("week")}
+            </Button>
+            <Button
+              size="tiny"
+              appearance={periodType === "month" ? "filled" : "outline"}
+              onPress={() => setPeriodType("month")}
+              style={styles.periodButton as ViewStyle}
+            >
+              {t("month")}
+            </Button>
+            <Button
+              size="tiny"
+              appearance={periodType === "custom" ? "filled" : "outline"}
+              onPress={() => setPeriodType("custom")}
+              style={styles.periodButton as ViewStyle}
+            >
+              {t("custom")}
+            </Button>
+          </View>
+
+          {/* Hiển thị bộ chọn ngày chỉ khi chọn "custom" */}
+          {periodType === "custom" && (
+            <>
+              <View style={styles.datePickerRow as ViewStyle}>
+                <Text category="label">{t("start_date")}:</Text>
+                <Datepicker
+                  date={startDate}
+                  onSelect={(nextDate) => setStartDate(nextDate)}
+                  max={endDate}
+                  style={styles.datePicker as ViewStyle}
+                  size="small"
+                />
+              </View>
+
+              <View style={styles.datePickerRow as ViewStyle}>
+                <Text category="label">{t("end_date")}:</Text>
+                <Datepicker
+                  date={endDate}
+                  onSelect={(nextDate) => setEndDate(nextDate)}
+                  min={startDate}
+                  max={new Date()}
+                  style={styles.datePicker as ViewStyle}
+                  size="small"
+                />
+              </View>
+            </>
+          )}
+
+          <View style={styles.modalButtonContainer as ViewStyle}>
+            <Button
+              size="small"
+              appearance="outline"
+              status="basic"
+              style={styles.modalButton as ViewStyle}
+              onPress={() => setDateFilterVisible(false)}
+            >
+              {t("cancel")}
+            </Button>
+            <Button
+              size="small"
+              status="primary"
+              style={styles.modalButton as ViewStyle}
+              onPress={() => {
+                setTimeFrame(periodType);
+                setDateFilterVisible(false);
+                updateDateRangeText();
+                loadStatistics();
+              }}
+            >
+              {t("apply")}
+            </Button>
+          </View>
+        </Card>
+      </Modal>
     </Layout>
   );
 };
@@ -1981,6 +2096,18 @@ const styleSheet = StyleService.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: 20,
+  },
+  periodTypeContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  periodButton: {
+    flex: 1,
+    marginHorizontal: 2,
+    paddingHorizontal: 2, // Giảm đệm ngang
+    minWidth: 50, // Đảm bảo nút có kích thước tối thiểu
+    height: 50,
   },
 });
 

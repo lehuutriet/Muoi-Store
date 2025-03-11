@@ -44,6 +44,7 @@ import {
   productIdsAtom,
   productAtomFamily,
 } from "../../states";
+import { useFocusEffect } from "@react-navigation/native";
 interface Product {
   $id: string;
   name: string;
@@ -102,60 +103,60 @@ const OrderList = ({
     []
   );
 
+  let queries: string[] = [];
+
+  // Chuyển đổi định dạng ngày cho đúng - sử dụng định dạng YYYY-MM-DD
+  const formatDate = date.toISOString().split("T")[0];
+
+  // Lấy giới hạn ngày - từ 00:00:00 đến 23:59:59 của ngày được chọn
+  const startDate = new Date(date);
+  startDate.setHours(0, 0, 0, 0);
+
+  const endDate = new Date(date);
+  endDate.setHours(23, 59, 59, 999);
+
+  switch (status) {
+    case "all":
+      queries = [
+        Query.limit(orderLimit),
+        Query.greaterThanEqual("$createdAt", startDate.toISOString()),
+        Query.lessThanEqual("$createdAt", endDate.toISOString()),
+        Query.orderDesc("$createdAt"),
+      ];
+      break;
+    case "unpaid":
+      queries = [
+        Query.equal("status", "unpaid"),
+        Query.greaterThanEqual("$createdAt", startDate.toISOString()),
+        Query.lessThanEqual("$createdAt", endDate.toISOString()),
+        Query.orderDesc("$createdAt"),
+      ];
+      break;
+    case "paid":
+      queries = [
+        Query.equal("status", ["cash", "transfer"]),
+        Query.greaterThanEqual("$createdAt", startDate.toISOString()),
+        Query.lessThanEqual("$createdAt", endDate.toISOString()),
+        Query.orderDesc("$createdAt"),
+      ];
+      break;
+    default:
+      break;
+  }
+
+  const loadOrders = async () => {
+    console.log(
+      "filter:: startDate:",
+      startDate.toISOString(),
+      "endDate:",
+      endDate.toISOString()
+    );
+    console.log("queries::", queries);
+    const result = await getAllItem(COLLECTION_IDS.orders, queries);
+    console.log("orderList::", result);
+    setOrders(result);
+  };
   useEffect(() => {
-    let queries: string[] = [];
-
-    // Chuyển đổi định dạng ngày cho đúng - sử dụng định dạng YYYY-MM-DD
-    const formatDate = date.toISOString().split("T")[0];
-
-    // Lấy giới hạn ngày - từ 00:00:00 đến 23:59:59 của ngày được chọn
-    const startDate = new Date(date);
-    startDate.setHours(0, 0, 0, 0);
-
-    const endDate = new Date(date);
-    endDate.setHours(23, 59, 59, 999);
-
-    switch (status) {
-      case "all":
-        queries = [
-          Query.limit(orderLimit),
-          Query.greaterThanEqual("$createdAt", startDate.toISOString()),
-          Query.lessThanEqual("$createdAt", endDate.toISOString()),
-          Query.orderDesc("$createdAt"),
-        ];
-        break;
-      case "unpaid":
-        queries = [
-          Query.equal("status", "unpaid"),
-          Query.greaterThanEqual("$createdAt", startDate.toISOString()),
-          Query.lessThanEqual("$createdAt", endDate.toISOString()),
-          Query.orderDesc("$createdAt"),
-        ];
-        break;
-      case "paid":
-        queries = [
-          Query.equal("status", ["cash", "transfer"]),
-          Query.greaterThanEqual("$createdAt", startDate.toISOString()),
-          Query.lessThanEqual("$createdAt", endDate.toISOString()),
-          Query.orderDesc("$createdAt"),
-        ];
-        break;
-      default:
-        break;
-    }
-
-    const loadOrders = async () => {
-      console.log(
-        "filter:: startDate:",
-        startDate.toISOString(),
-        "endDate:",
-        endDate.toISOString()
-      );
-      console.log("queries::", queries);
-      const result = await getAllItem(COLLECTION_IDS.orders, queries);
-      console.log("orderList::", result);
-      setOrders(result);
-    };
     loadOrders();
   }, [status, date, orderLimit]);
 
@@ -187,7 +188,17 @@ const OrderList = ({
         //   ),
       }
     );
+  useFocusEffect(
+    React.useCallback(() => {
+      loadOrders();
+      return () => {};
+    }, [status, date, orderLimit])
+  );
 
+  // Tạo hàm refreshOrders
+  const refreshOrders = () => {
+    loadOrders();
+  };
   const viewOrder = async (orderInfo: any) => {
     console.log("orderInfo::", orderInfo);
 
@@ -208,29 +219,37 @@ const OrderList = ({
     });
 
     resetProductList().then(() => {
-      RootNavigation.navigate("ReviewOrderScreen");
+      RootNavigation.navigate("ReviewOrderScreen", {
+        onGoBack: refreshOrders, // Thêm callback này
+      });
     });
   };
 
   const cancelOrder = async (orderInfo: any) => {
     setWaiting(true);
     console.log("cancelOrder called::", orderInfo);
-    await deleteItem(COLLECTION_IDS.orders, orderInfo.$id);
-    setOrderLimit(orderLimit + 1);
-    setWaiting(false);
-    Alert.alert(
-      "",
-      t("order_canceled"),
-      [
+    try {
+      await deleteItem(COLLECTION_IDS.orders, orderInfo.$id);
+      // Không cần tăng orderLimit, thay vào đó gọi refreshOrders
+      refreshOrders();
+      Alert.alert(
+        "",
+        t("order_canceled"),
+        [
+          {
+            text: t("ok"),
+            style: "default",
+          },
+        ],
         {
-          text: t("ok"),
-          style: "default",
-        },
-      ],
-      {
-        cancelable: true,
-      }
-    );
+          cancelable: true,
+        }
+      );
+    } catch (error) {
+      console.error("Lỗi khi hủy đơn hàng:", error);
+    } finally {
+      setWaiting(false);
+    }
   };
 
   const renderItem = (info: any): React.ReactElement => {

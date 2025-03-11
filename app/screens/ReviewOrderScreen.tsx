@@ -162,8 +162,8 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
               method === "add"
                 ? obj.count + 1
                 : method === "sub"
-                ? obj.count - 1
-                : obj.count,
+                  ? obj.count - 1
+                  : obj.count,
           };
         }
         return obj;
@@ -560,8 +560,8 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
                 ? order.location === "dine-in"
                   ? t("dine_in")
                   : order.location === "take-away"
-                  ? t("take_away")
-                  : t("delivery")
+                    ? t("take_away")
+                    : t("delivery")
                 : t("choose_location")
             }
             selectedIndex={selectedLocationIndex}

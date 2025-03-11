@@ -30,6 +30,8 @@ import { Buffer } from "buffer";
 import { ViewStyle, ImageStyle, TextStyle } from "react-native";
 import { RouteProp } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
+import { useRecoilCallback } from "recoil";
+import { allProductsAtom, productAtomFamily } from "../states";
 // import ReactNativeBlobUtil from "react-native-blob-util";
 type RootStackParamList = {
   TabNavigator: undefined;
@@ -84,19 +86,115 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
   const [userInfo, setUserInfo] = useRecoilState(userAtom);
   const [returnModalVisible, setReturnModalVisible] = useState(false);
   const [returnReason, setReturnReason] = useState("");
+
   const [selectedItems, setSelectedItems] = useState<{
     [key: string]: boolean;
   }>({});
+  const [returnAmount, setReturnAmount] = useState(0);
+  const [currentReturnAmount, setCurrentReturnAmount] = useState(0);
+  // Thêm useEffect để theo dõi khi selectedItems thay đổi
+  useEffect(() => {
+    if (data) {
+      setReturnAmount(calculateReturnAmount());
+    }
+  }, [selectedItems, data]);
   // Thêm vào phần đầu của component ReceiptScreen
-  const { updateItem, createItem, getSingleItem } = useDatabases();
+  const { updateItem, createItem, getSingleItem, getAllItem } = useDatabases();
   const [waiting, setWaiting] = useState(false);
-  const showReturnOrderModal = () => {
-    setSelectedItems({});
-    setReturnReason("");
-    setReturnModalVisible(true);
+  const toggleItemSelection = (index: any) => {
+    const newSelectedItems = {
+      ...selectedItems,
+      [index]: !selectedItems[index],
+    };
+
+    setSelectedItems(newSelectedItems);
+
+    // Tính lại giá trị hoàn trả ngay lập tức
+    if (data && data.order) {
+      const item = data.order[index];
+      const itemValue = item.price * item.count;
+
+      // Nếu đang chọn mới, thêm giá trị
+      if (!selectedItems[index]) {
+        setCurrentReturnAmount(currentReturnAmount + itemValue);
+      }
+      // Nếu đang bỏ chọn, trừ giá trị
+      else {
+        setCurrentReturnAmount(currentReturnAmount - itemValue);
+      }
+    }
   };
 
+  // Sửa lại hàm showReturnOrderModal
+  const showReturnOrderModal = () => {
+    if (!data || !data.order) return;
+
+    // Tạo đối tượng selectedItems với tất cả mục được chọn
+    const newSelectedItems: { [key: number]: boolean } = {};
+    data.order.forEach((_, index) => {
+      newSelectedItems[index] = true;
+    });
+
+    setSelectedItems(newSelectedItems);
+    setReturnReason("");
+
+    // Tính tổng giá trị trực tiếp từ data
+    let sum = 0;
+    if (data.status === "cash" || data.status === "transfer") {
+      data.order.forEach((item) => {
+        sum += item.price * item.count;
+      });
+    }
+
+    setCurrentReturnAmount(sum);
+    setReturnModalVisible(true);
+  };
+  // Hàm tính toán giá trị hoàn trả
+  const calculateReturnAmount = () => {
+    let total = 0;
+
+    if (!data || !data.order) return total;
+
+    // Kiểm tra đơn hàng đã thanh toán chưa
+    const isPaid = data.status === "cash" || data.status === "transfer";
+
+    // Nếu chưa thanh toán, giá trị hoàn trả là 0
+    if (!isPaid) {
+      return 0;
+    }
+
+    // Nếu đã thanh toán, tính tổng giá trị các sản phẩm được chọn để hoàn trả
+    Object.entries(selectedItems).forEach(([index, isSelected]) => {
+      if (isSelected) {
+        const item = data.order[parseInt(index)];
+        total += item.price * item.count;
+      }
+    });
+
+    return total;
+  };
+  // Thêm vào phần đầu của component ReceiptScreen
+  const refreshProductList = useRecoilCallback(
+    ({ set }) =>
+      async () => {
+        try {
+          const productData = await getAllItem(COLLECTION_IDS.products);
+
+          // Cập nhật atom chứa tất cả sản phẩm
+          set(allProductsAtom, productData);
+
+          // Cập nhật từng sản phẩm trong atom family
+          for (const product of productData) {
+            set(productAtomFamily(product.$id), product);
+          }
+        } catch (error) {
+          console.error("Error refreshing product list:", error);
+        }
+      },
+    []
+  );
   const handleReturnOrder = async () => {
+    if (!data) return;
     if (!returnReason) {
       Alert.alert("", t("please_provide_return_reason"));
       return;
@@ -105,14 +203,22 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
     setWaiting(true);
 
     try {
+      // Kiểm tra trạng thái thanh toán
+
+      const returnAmount = calculateReturnAmount();
+
       // Tạo dữ liệu để lưu thông tin đơn hàng bị hoàn trả
+      const isPaid = data?.status === "cash" || data?.status === "transfer";
       const returnData = {
         originalOrderId: data?.$id,
         returnDate: new Date().toISOString(),
         returnReason: returnReason,
-        returnedItems: data?.order.filter((_, index) => selectedItems[index]),
-        totalReturnAmount: calculateReturnAmount(),
+        returnedItems: data?.order
+          .filter((_, index) => selectedItems[index])
+          .map((item) => `${item.$id}:${item.count}`), // Lưu định dạng id:count
+        totalReturnAmount: returnAmount,
         status: "returned",
+        wasPaid: isPaid, // Đảm bảo là boolean (true/false), không phải null
       };
 
       // Cập nhật trạng thái đơn hàng gốc thành 'returned'
@@ -125,29 +231,40 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
       // Lưu thông tin chi tiết về việc hoàn trả
       await createItem(COLLECTION_IDS.returns, returnData);
 
-      // Cập nhật lại tồn kho (hoàn trả số lượng vào kho)
-      for (const [index, isSelected] of Object.entries(selectedItems)) {
-        if (isSelected && data?.order[parseInt(index)]) {
-          const item = data.order[parseInt(index)];
-          const product = await getSingleItem(
-            COLLECTION_IDS.products,
-            item.$id
-          );
+      // Chỉ cập nhật lại tồn kho nếu đơn hàng đã thanh toán trước đó
+      if (isPaid) {
+        for (const [index, isSelected] of Object.entries(selectedItems)) {
+          if (isSelected && data?.order[parseInt(index)]) {
+            const item = data.order[parseInt(index)];
+            const product = await getSingleItem(
+              COLLECTION_IDS.products,
+              item.$id
+            );
 
-          if (product) {
-            const currentStock = product.stock || 0;
-            const newStock = currentStock + item.count;
+            if (product) {
+              const currentStock = product.stock || 0;
+              const newStock = currentStock + item.count;
 
-            await updateItem(COLLECTION_IDS.products, item.$id, {
-              stock: newStock,
-            });
+              await updateItem(COLLECTION_IDS.products, item.$id, {
+                stock: newStock,
+              });
+            }
           }
         }
       }
 
-      Alert.alert("", t("order_return_success"), [
+      // Thông báo kết quả
+      const successMessage = isPaid
+        ? t("order_return_success_with_refund").replace(
+            "{amount}",
+            returnAmount.toLocaleString("vi-VN")
+          )
+        : t("order_return_success_no_refund");
+
+      Alert.alert("", successMessage, [
         { text: t("ok"), onPress: () => navigation.goBack() },
       ]);
+      await refreshProductList();
     } catch (error) {
       console.error("Lỗi khi hoàn trả đơn hàng:", error);
       Alert.alert("", t("order_return_error"));
@@ -156,24 +273,7 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
       setReturnModalVisible(false);
     }
   };
-
-  const calculateReturnAmount = () => {
-    let total = 0;
-
-    if (!data || !data.order) return total;
-
-    Object.entries(selectedItems).forEach(([index, isSelected]) => {
-      if (isSelected) {
-        const item = data.order[parseInt(index)];
-        total += item.price * item.count;
-      }
-    });
-
-    return total;
-  };
   useEffect(() => {
-    // Use `setOptions` to update the button that we previously specified
-    // Now the button includes an `onPress` handler to update the count
     navigation.setOptions({
       title: t("receipt_detail"),
       headerRight: () => (
@@ -973,12 +1073,7 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
                   appearance={selectedItems[index] ? "filled" : "outline"}
                   status="primary"
                   size="tiny"
-                  onPress={() =>
-                    setSelectedItems((prev) => ({
-                      ...prev,
-                      [index]: !prev[index],
-                    }))
-                  }
+                  onPress={() => toggleItemSelection(index)}
                   accessoryLeft={(props) => (
                     <Icon
                       {...props}
@@ -1010,10 +1105,12 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
 
           <Text category="s1" style={{ marginBottom: 8 }}>
             {t("total_return_amount")}:{" "}
-            {Intl.NumberFormat("en-US", {
-              style: "currency",
-              currency: "VND",
-            }).format(calculateReturnAmount())}
+            {data && (data.status === "cash" || data.status === "transfer")
+              ? Intl.NumberFormat("vi-VN", {
+                  style: "currency",
+                  currency: "VND",
+                }).format(currentReturnAmount)
+              : t("unpaid_no_refund")}
           </Text>
 
           <View

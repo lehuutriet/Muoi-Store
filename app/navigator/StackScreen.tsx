@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useContext } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Button,
@@ -7,10 +7,18 @@ import {
   StyleService,
   useStyleSheet,
   useTheme,
+  Avatar,
+  Text,
 } from "@ui-kitten/components";
 import { useRecoilState } from "recoil";
 import { userAtom } from "../states";
-import { Platform, ViewStyle } from "react-native";
+import {
+  ImageStyle,
+  Platform,
+  ViewStyle,
+  View,
+  TouchableOpacity,
+} from "react-native";
 import UpdateStockScreen from "../screens/UpdateStockScreen";
 import PrinterScreen from "../screens/PrinterScreen";
 import StaffCheckoutScreen from "../screens/StaffCheckoutScreen";
@@ -28,6 +36,8 @@ import ManageTableScreen from "../screens/ManageTableScreen";
 
 import TabNavigator from "./BottomTab";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import StatisticScreen from "../screens/StatisticScreen";
+import { DrawerContext } from "../contexts/AppContext";
 
 // Định nghĩa các tham số cho navigation
 type RootStackParamList = {
@@ -37,7 +47,7 @@ type RootStackParamList = {
   ManageTableScreen: undefined;
   ManageOrderScreen: undefined;
   CreateOrderScreen: { title: string; method: string };
-  ReviewOrderScreen: { orderInfo?: any };
+  ReviewOrderScreen: { orderInfo?: any; onGoBack?: () => void };
   ReceiptScreen: { receiptData: any };
   PrinterScreen: undefined;
   PasswordScreen: undefined;
@@ -45,7 +55,8 @@ type RootStackParamList = {
   WarehouseScreen: undefined;
   ReportScreen: undefined;
   ChatScreen: undefined;
-  UpdateStockScreen: undefined;
+  UpdateStockScreen: { item: any };
+  StatisticScreen: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -63,6 +74,7 @@ const StackScreen: React.FC<StackScreenProps> = ({
   const styles = useStyleSheet(styleSheet);
   const { t } = useTranslation();
   const [userInfo, setUserInfo] = useRecoilState(userAtom);
+  const { toggleDrawer } = useContext(DrawerContext);
 
   return (
     <Stack.Navigator
@@ -75,13 +87,46 @@ const StackScreen: React.FC<StackScreenProps> = ({
         headerBackTitle: "Back",
         animationDuration: 150,
         freezeOnBlur: true,
+        // Mặc định các màn hình khác dùng nút menu tiêu chuẩn
+        headerLeft: ({ canGoBack }) => {
+          return canGoBack ? undefined : (
+            <Button
+              style={styles.menuIcon as ViewStyle}
+              appearance="ghost"
+              accessoryLeft={(props) => (
+                <Icon
+                  {...props}
+                  name="menu-outline"
+                  fill={theme["color-primary-600"]}
+                />
+              )}
+              onPress={toggleDrawer}
+            />
+          );
+        },
       }}
     >
       <Stack.Screen
         name="TabNavigator"
         options={{
-          title: userInfo.STORE_NAME,
+          title: "",
           gestureDirection: "horizontal",
+          headerLeft: () => (
+            <TouchableOpacity
+              style={styles.headerLeftContainer as ViewStyle}
+              onPress={toggleDrawer}
+            >
+              <Avatar
+                size="medium"
+                style={styles.avatarImage as ImageStyle}
+                source={require("../../assets/images/iconshop.png")}
+              />
+              <View style={styles.headerTextContainer as ViewStyle}>
+                <Text category="h6">{userInfo.STORE_NAME || "Shop"}</Text>
+              </View>
+            </TouchableOpacity>
+          ),
+          headerTitle: () => null,
         }}
       >
         {(props) => <TabNavigator {...props} onLoggedOut={onLoggedOut} />}
@@ -108,6 +153,11 @@ const StackScreen: React.FC<StackScreenProps> = ({
         options={{
           title: t("manage_table"),
         }}
+      />
+      <Stack.Screen
+        name="StatisticScreen"
+        component={StatisticScreen}
+        options={{ title: t("statistics") }}
       />
       <Stack.Screen
         name="ManageOrderScreen"
@@ -193,12 +243,37 @@ const StackScreen: React.FC<StackScreenProps> = ({
 
 interface StyleProps {
   menuIcon: ViewStyle;
+  avatarImage: ImageStyle;
+  headerLeftContainer: ViewStyle;
+  headerTextContainer: ViewStyle;
+  settingsRow: ViewStyle;
 }
 
 const styleSheet = StyleService.create<StyleProps>({
   menuIcon: {
     backgroundColor: "transparent",
     borderWidth: 0,
+  },
+  avatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "color-primary-300",
+  },
+  headerLeftContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 12,
+    paddingVertical: 8,
+  },
+  headerTextContainer: {
+    marginLeft: 10,
+    justifyContent: "center",
+  },
+  settingsRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
 });
 

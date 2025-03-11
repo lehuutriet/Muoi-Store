@@ -131,7 +131,7 @@ const CreateProductScreen = ({
     []
   )();
   const getFileIdFromUrl = (url: string) => {
-    const matches = url.match(/files\/(.*?)\/view/);
+    const matches = url.match(/files\/([a-zA-Z0-9-]+)\/view/);
     if (matches && matches[1]) {
       return matches[1];
     }
@@ -143,36 +143,55 @@ const CreateProductScreen = ({
     const item = route.params.item;
 
     if (item && item.$id) {
-      // Kiểm tra cả photo và photoUrl
-      if (item.photo || item.photoUrl) {
-        // Nếu có photoUrl thì lấy fileId từ url
-        if (item.photoUrl) {
-          const fileId = getFileIdFromUrl(item.photoUrl);
-          if (fileId) {
-            setPhotoID(fileId);
-          }
-        }
-        // Nếu có photo thì dùng trực tiếp
-        if (item.photo) {
-          setPhotoID(item.photo);
-        }
+      // Tạo một hàm con async để xử lý việc tải ảnh
+      const loadPhoto = async () => {
+        try {
+          // Thử tải ảnh từ photoUrl trước
+          if (item.photoUrl) {
+            console.log("Setting photo from photoUrl:", item.photoUrl);
+            setPhoto({ uri: item.photoUrl });
 
-        // Load ảnh nếu có photoID
-        if (photoID) {
-          const loadPhoto = async () => {
-            try {
-              const photoUrl = await getFileView(photoID);
+            // Lấy fileID từ photoUrl
+            const fileId = getFileIdFromUrl(item.photoUrl);
+            if (fileId) {
+              console.log("FileID extracted from URL:", fileId);
+              setPhotoID(fileId);
+            } else if (item.photo) {
+              // Nếu không lấy được fileID từ url, dùng trường photo
+              console.log("Using photo field as fallback:", item.photo);
+              setPhotoID(item.photo);
+
+              // Tải trực tiếp ảnh từ fileID
+              const photoUrl = await getFileView(item.photo);
               if (photoUrl) {
+                console.log("Setting photo from getFileView:", photoUrl);
                 setPhoto({ uri: photoUrl });
               }
-            } catch (error) {
-              console.error("Error loading photo:", error);
             }
-          };
-          loadPhoto();
-        }
-      }
+          }
+          // Nếu không có photoUrl nhưng có photo field
+          else if (item.photo) {
+            console.log("No photoUrl, using photo field:", item.photo);
+            setPhotoID(item.photo);
 
+            // Tải ảnh từ fileID
+            const photoUrl = await getFileView(item.photo);
+            if (photoUrl) {
+              console.log("Setting photo from getFileView:", photoUrl);
+              setPhoto({ uri: photoUrl });
+            } else {
+              console.log("Failed to get photo view from ID");
+            }
+          }
+        } catch (error) {
+          console.error("Error loading photo:", error);
+        }
+      };
+
+      // Gọi hàm tải ảnh
+      loadPhoto();
+
+      // Thiết lập các trường khác
       if (item.name) {
         setName(item.name);
       }
@@ -188,9 +207,10 @@ const CreateProductScreen = ({
       if (item.description) {
         setDescription(item.description);
       }
-      // Sử dụng toán tử nullish coalescing
+
       setStock((item.stock ?? 0).toString());
       setMinStock((item.minStock ?? 0).toString());
+
       if (item.category) {
         let index = categories.findIndex(
           (category) => category.$id === item.category
@@ -199,7 +219,7 @@ const CreateProductScreen = ({
         setSelectedCategoryIndex(new IndexPath(index));
       }
     }
-  }, [photoID]); // Thêm photoID vào dependencies
+  }, []); // Bỏ photoID ra khỏi dependencies để tránh vòng lặp useEffect
 
   const handleTakePhotoFromCamera = async () => {
     // No permissions request is necessary for launching the image library
@@ -302,19 +322,60 @@ const CreateProductScreen = ({
     try {
       setWaiting(true);
 
+      // Trước tiên, upload ảnh nếu có ảnh mới
+      let newPhotoID = photoID;
+
+      if (
+        !photo.uri.startsWith("http") &&
+        photo.uri !== "file:///default.jpeg"
+      ) {
+        console.log("Uploading new photo...");
+        try {
+          const fileId = await uploadFile(photo, photoID);
+          if (fileId && typeof fileId === "string") {
+            newPhotoID = fileId;
+            console.log("New photo ID:", newPhotoID);
+          } else {
+            console.log("Upload failed, keeping original photo ID if exists");
+          }
+        } catch (uploadError) {
+          console.error("Error uploading photo:", uploadError);
+          showAlert("", t("upload_photo_error"));
+        }
+      }
+
+      // Tạo dữ liệu sản phẩm với photoID đã xác nhận
+      // Khi tạo dữ liệu sản phẩm
       let data: any = {
         name: name.trim(),
         price: parseFloat((price ?? "0").replace(/\D/g, "")),
         cost: parseFloat((cost ?? "0").replace(/\D/g, "")),
-        stock: parseInt((stock ?? "0").replace(/\D/g, "")), // Thêm trường stock
-        minStock: parseInt((minStock ?? "0").replace(/\D/g, "")), // Thêm trường minStock
+        stock: parseInt((stock ?? "0").replace(/\D/g, "")),
+        minStock: parseInt((minStock ?? "0").replace(/\D/g, "")),
         category:
           categories.length > 0 && selectedCategoryIndex.row > 0
             ? categories[selectedCategoryIndex.row - 1].$id
             : null,
         description: description.trim(),
-        photo: photoID,
+        photo: newPhotoID ? newPhotoID.substring(0, 30) : "",
       };
+
+      // Thêm trường photoUrl vào data trước khi lưu
+      // Trong hàm onCreate
+      if (newPhotoID) {
+        const photoUrl = await getFileView(newPhotoID);
+        if (photoUrl) {
+          // Lưu chỉ fileID thay vì toàn bộ URL
+          data.photoUrl = newPhotoID;
+        }
+      }
+
+      if (newPhotoID && typeof newPhotoID === "string") {
+        // Lưu toàn bộ ID
+        data.photo = newPhotoID;
+      } else {
+        data.photo = "";
+      }
 
       if (!data.name || !data.price || !data.category) {
         setRequired(true);
@@ -323,39 +384,9 @@ const CreateProductScreen = ({
         return;
       }
 
-      try {
-        if (
-          !photo.uri.startsWith("http") &&
-          photo.uri !== "file:///default.jpeg"
-        ) {
-          console.log("Uploading new photo...");
-          const uploadResponse = (await uploadFile(photo, photoID)) as Response;
-
-          // Kiểm tra response và parse JSON
-          if (uploadResponse && uploadResponse.ok) {
-            const responseData = await uploadResponse.json();
-            console.log("Upload response:", responseData);
-
-            if (responseData && responseData.$id) {
-              data.photo = responseData.$id;
-              const fileViewUrl = await getFileView(responseData.$id);
-              if (fileViewUrl) {
-                data.photoUrl = fileViewUrl;
-              }
-            }
-          } else {
-            console.log("Invalid upload response");
-            data.photo = null;
-          }
-        }
-      } catch (uploadError) {
-        console.error("Error uploading photo:", uploadError);
-        showAlert("", t("upload_photo_error"));
-        return;
-      }
-
-      let result;
+      // Thực hiện tạo hoặc cập nhật sản phẩm
       console.log("Submitting data:", data);
+      let result;
 
       if (method === "create") {
         result = await createItem(COLLECTION_IDS.products, data);
@@ -371,6 +402,20 @@ const CreateProductScreen = ({
 
       if (result && result.$id) {
         console.log("Operation successful:", result);
+
+        // Sau khi tạo/cập nhật sản phẩm thành công, thêm photoUrl vào
+        if (newPhotoID) {
+          try {
+            const fileViewUrl = await getFileView(newPhotoID);
+            if (fileViewUrl) {
+              await updateItem(COLLECTION_IDS.products, result.$id, {
+                photoUrl: fileViewUrl,
+              });
+            }
+          } catch (error) {
+            console.error("Error updating photoUrl:", error);
+          }
+        }
 
         await refreshProductList();
 

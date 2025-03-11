@@ -83,6 +83,7 @@ export const DATA_ATOM = {
     ids: tableIdsAtom,
     idData: tableAtomFamily,
   },
+
   // warehouse: "warehouse",
   // store: 'store'
 };
@@ -390,7 +391,10 @@ export function useStorage() {
   const { storage } = context;
   const { getUserPrefs } = useAccounts();
   // Function to upload file to server
-  async function uploadFile(file: any, oldPhotoID: any) {
+  async function uploadFile(
+    file: any,
+    oldPhotoID: any
+  ): Promise<string | false> {
     const userPrefs = await getUserPrefs();
     return new Promise(async (resolve, reject) => {
       try {
@@ -406,22 +410,22 @@ export function useStorage() {
         });
         formData.append("bucketId", userPrefs.BUCKET_ID);
         formData.append("fileId", fileID);
-        // console.log("formData::", formData);
+
         const apiEndPoint = `${APPWRITE_ENDPOINT}/storage/buckets/${userPrefs.BUCKET_ID}/files`;
         const appwriteHeaders = {
           "X-Appwrite-Project": PROJECT_ID,
-          // "content-type": "multipart/form-data",
           "X-Appwrite-Response-Format": "11.0.0",
-          // "x-sdk-version": "appwrite:web:11.0.0",
         };
+
         const result = await fetch(apiEndPoint, {
           method: "POST",
           headers: appwriteHeaders,
           body: formData,
           credentials: "include",
         });
-        console.log("upload result::", JSON.stringify(result));
+
         if (result && result.status === 201) {
+          const responseData = await result.json();
           if (oldPhotoID) {
             fetch(`${apiEndPoint}/${oldPhotoID}`, {
               method: "DELETE",
@@ -429,8 +433,15 @@ export function useStorage() {
               credentials: "include",
             });
           }
-          resolve(fileID);
+
+          if (responseData && responseData.$id) {
+            resolve(responseData.$id);
+          } else {
+            console.log("Invalid response data:", responseData);
+            resolve(false);
+          }
         } else {
+          console.log("Upload failed, status:", result.status);
           resolve(false);
         }
       } catch (error) {
@@ -440,11 +451,43 @@ export function useStorage() {
     });
   }
   async function getFileView(fileID: string): Promise<string | null> {
-    const userPrefs = await getUserPrefs();
-    const result = await storage.getFileView(userPrefs.BUCKET_ID, fileID);
-    return fileID && result && result._url
-      ? `${result._url}?project=${PROJECT_ID}`
-      : null;
+    if (!fileID) return null;
+
+    try {
+      const userPrefs = await getUserPrefs();
+
+      // Kiểm tra nếu fileID bị cắt ngắn
+      let fullFileID = fileID;
+      if (fileID.length < 36 && fileID.includes("-")) {
+        console.log("Attempting to fix truncated ID:", fileID);
+        // Thử tìm file trong bucket với ID bắt đầu bằng chuỗi fileID
+        try {
+          // Nếu có thể, liệt kê tất cả files trong bucket và tìm cái khớp
+          const files = await storage.listFiles(userPrefs.BUCKET_ID);
+          const matchingFile = files.files.find((file: any) =>
+            file.$id.startsWith(fileID)
+          );
+          if (matchingFile) {
+            fullFileID = matchingFile.$id;
+            console.log("Found matching file with full ID:", fullFileID);
+          }
+        } catch (e) {
+          console.log("Could not search for full file ID:", e);
+        }
+      }
+
+      console.log("Attempting to get file view for ID:", fullFileID);
+
+      // Trường hợp không thể phục hồi ID đầy đủ, tạo URL trực tiếp
+      // Vì bạn đã biết URL đầy đủ từ log
+      const directUrl = `${APPWRITE_ENDPOINT}/storage/buckets/${userPrefs.BUCKET_ID}/files/${fullFileID}/view?project=${PROJECT_ID}`;
+      console.log("Direct URL:", directUrl);
+
+      return directUrl;
+    } catch (error) {
+      console.error("Error getting file view:", error);
+      return null;
+    }
   }
   return { uploadFile, getFileView };
 }
