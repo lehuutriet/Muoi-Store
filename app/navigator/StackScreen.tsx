@@ -33,7 +33,7 @@ import ManageOrderScreen from "../screens/ManageOrderScreen";
 import CreateProductScreen from "../screens/CreateProductScreen";
 import ManageProductScreen from "../screens/ManageProductScreen";
 import ManageTableScreen from "../screens/ManageTableScreen";
-
+import CreateWarehouseEntryScreen from "../screens/CreateWarehouseEntryScreen";
 import TabNavigator from "./BottomTab";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import StatisticScreen from "../screens/StatisticScreen";
@@ -57,6 +57,7 @@ type RootStackParamList = {
   ChatScreen: undefined;
   UpdateStockScreen: { item: any };
   StatisticScreen: undefined;
+  CreateWarehouseEntryScreen: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -199,6 +200,13 @@ const StackScreen: React.FC<StackScreenProps> = ({
         component={PasswordScreen}
         options={{
           title: t("password_change"),
+        }}
+      />
+      <Stack.Screen
+        name="CreateWarehouseEntryScreen"
+        component={CreateWarehouseEntryScreen}
+        options={{
+          title: t("add_inventory"),
         }}
       />
       <Stack.Screen

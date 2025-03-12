@@ -104,7 +104,7 @@
   "total_profit": "Tổng lợi nhuận",
   "profit_margin": "Tỷ suất lợi nhuận",
   "print_receipt": "In hóa đơn",
-  "quantity": "SL",
+  "quantity": "Số lượng",
   "receipt": "Hóa Đơn Chi Tiết",
   "receipt_temp": "Hóa Đơn Tạm Tính",
   "report": "Báo cáo",
@@ -250,6 +250,26 @@
   "unpaid_no_refund": "Đơn hàng chưa thanh toán (0đ)",
   "today_revenue1": "Doanh thu",
   "today_orders1": "Đơn hàng", 
-  "unpaid_orders1": "Chưa thanh toán"
-
+  "unpaid_orders1": "Chưa thanh toán",
+  "import_price":"Gía nhập",
+  "add_new_inventory":"Thêm hàng mới",
+  "add_to_inventory":"Thêm vào kho",
+  "enter_product_name":"Nhập tên sản phẩm",
+  "add_inventory":"Thêm hàng tồn kho",
+  "enter_import_price":"Nhập giá nhập khẩu",
+  "currency":"VNĐ",
+  "current_stock":"Kho hàng hiện tại",
+  "updating":"Đang cập nhật",
+  "update_product_details":"Cập nhật chi tiết sản phẩm",
+  "add_inventory_success":"Thêm vào kho thành công",
+  "adding":"Đang thêm",
+  "confirm_deletion":"Xác nhận xóa",
+  "delete_item_confirmation": "Bạn có chắc chắn muốn xóa sản phẩm {name}?",
+  "delete_success":"Xóa thành công",
+  "update_inventory":"Cập nhật hàng",
+  "update_inventory_description":"Cập nhật mô tả hàng kho",
+  "add_inventory_description":"Thêm mô tả hàng kho"
+  
+  
+  
 }

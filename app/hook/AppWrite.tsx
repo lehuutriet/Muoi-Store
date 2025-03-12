@@ -26,9 +26,12 @@ import {
   tableAtomFamily,
   orderIdsAtom,
   orderAtomFamily,
+  allWarehouseItemsAtom,
+  warehouseIdsAtom,
+  warehouseItemAtomFamily,
 } from "../states";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
+import { Query } from "appwrite";
 const client = new Client();
 client
   .setEndpoint("https://cloud.appwrite.io/v1")
@@ -55,7 +58,7 @@ export const COLLECTION_IDS = {
   orders: "orders",
   tables: "tables",
   returns: "returns",
-  // warehouse: "warehouse",
+  warehouse: "warehouse",
   // store: 'store'
 };
 interface GraphQLResponse {
@@ -83,11 +86,12 @@ export const DATA_ATOM = {
     ids: tableIdsAtom,
     idData: tableAtomFamily,
   },
-
-  // warehouse: "warehouse",
-  // store: 'store'
+  warehouse: {
+    all: allWarehouseItemsAtom,
+    ids: warehouseIdsAtom,
+    idData: warehouseItemAtomFamily,
+  },
 };
-
 export function createAppwriteClient(endpoint: string, id: string) {
   try {
     const storage = new Storage(client);
@@ -369,6 +373,52 @@ export function useDatabases() {
     return item;
   }
 
+  async function addStockTransaction(
+    productId: string,
+    quantity: number,
+    type: "in" | "out",
+    notes: string = ""
+  ) {
+    const userPrefs = await getUserPrefs();
+
+    const transactionData = {
+      productId,
+      quantity,
+      type,
+      notes,
+      transactionDate: new Date().toISOString(),
+    };
+
+    return databases.createDocument(
+      userPrefs.DATABASE_ID,
+      COLLECTION_IDS.warehouse,
+      ID.unique(),
+      transactionData
+    );
+  }
+
+  async function getProductStock(productId: string) {
+    const userPrefs = await getUserPrefs();
+
+    // Lấy tất cả giao dịch của sản phẩm
+    const transactions = await databases.listDocuments(
+      userPrefs.DATABASE_ID,
+      COLLECTION_IDS.warehouse,
+      [Query.equal("productId", productId)]
+    );
+
+    // Tính toán số lượng tồn kho
+    let stock = 0;
+    transactions.documents.forEach((item: any) => {
+      if (item.type === "in") {
+        stock += item.quantity;
+      } else if (item.type === "out") {
+        stock -= item.quantity;
+      }
+    });
+
+    return stock;
+  }
   async function deleteItem(collectionId: any, itemID: any) {
     const userPrefs = await getUserPrefs();
     const item = await databases.deleteDocument(
@@ -380,7 +430,15 @@ export function useDatabases() {
     return item;
   }
 
-  return { getAllItem, getSingleItem, createItem, updateItem, deleteItem };
+  return {
+    getAllItem,
+    getSingleItem,
+    createItem,
+    updateItem,
+    deleteItem,
+    addStockTransaction,
+    getProductStock,
+  };
 }
 
 export function useStorage() {
