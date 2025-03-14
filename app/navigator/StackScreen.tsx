@@ -38,7 +38,9 @@ import TabNavigator from "./BottomTab";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import StatisticScreen from "../screens/StatisticScreen";
 import { DrawerContext } from "../contexts/AppContext";
-
+import RecipeScreen from "../screens/RecipeScreen";
+import CreateRecipeScreen from "../screens/CreateRecipeScreen";
+import EditRecipeScreen from "../screens/EditRecipeScreen";
 // Định nghĩa các tham số cho navigation
 type RootStackParamList = {
   TabNavigator: undefined;
@@ -58,6 +60,10 @@ type RootStackParamList = {
   UpdateStockScreen: { item: any };
   StatisticScreen: undefined;
   CreateWarehouseEntryScreen: undefined;
+  StockTransferScreen: undefined;
+  CreateRecipeScreen: undefined;
+  RecipeScreen: undefined;
+  EditRecipeScreen: { recipe: any };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -230,7 +236,13 @@ const StackScreen: React.FC<StackScreenProps> = ({
           title: t("report"),
         }}
       />
-
+      <Stack.Screen
+        name="EditRecipeScreen"
+        component={EditRecipeScreen}
+        options={{
+          title: t("edit_recipe"),
+        }}
+      />
       <Stack.Screen
         name="ChatScreen"
         component={ChatScreen}
@@ -243,6 +255,20 @@ const StackScreen: React.FC<StackScreenProps> = ({
         component={UpdateStockScreen}
         options={{
           title: t("update_stock"),
+        }}
+      />
+      <Stack.Screen
+        name="RecipeScreen"
+        component={RecipeScreen}
+        options={{
+          title: t("recipes"),
+        }}
+      />
+      <Stack.Screen
+        name="CreateRecipeScreen"
+        component={CreateRecipeScreen}
+        options={{
+          title: t("create_recipe"),
         }}
       />
     </Stack.Navigator>

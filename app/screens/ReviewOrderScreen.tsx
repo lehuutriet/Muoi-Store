@@ -51,6 +51,7 @@ import {
 import { useDatabases, COLLECTION_IDS } from "../hook/AppWrite";
 import * as RootNavigation from "../navigator/RootNavigation";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { Query } from "appwrite";
 const vndMask = createNumberMask({
   // prefix: ['đ'],
   delimiter: ",",
@@ -220,7 +221,30 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
       },
     []
   );
+  const extractIngredientsFromRecipe = (recipe: any) => {
+    try {
+      if (!recipe.ingredients || !Array.isArray(recipe.ingredients)) {
+        return [];
+      }
 
+      return recipe.ingredients
+        .map((ingredientStr: any) => {
+          const parts = ingredientStr.split(":");
+          if (parts.length < 3) return null;
+
+          const [productId, name, quantityStr] = parts;
+          return {
+            productId,
+            name,
+            quantity: parseInt(quantityStr) || 0,
+          };
+        })
+        .filter((ingredient: any) => ingredient !== null);
+    } catch (error) {
+      console.error("Lỗi khi trích xuất nguyên liệu:", error);
+      return [];
+    }
+  };
   const saveOrder = async (orderStatus = "unpaid") => {
     console.log("saveOrder được gọi với status:", orderStatus);
 
@@ -272,28 +296,60 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
 
         // Nếu đơn hàng là paid (đã thanh toán), cập nhật số lượng tồn kho
         if (orderStatus === "cash" || orderStatus === "transfer") {
-          // Cập nhật số lượng tồn kho cho từng sản phẩm
+          // Duyệt qua từng sản phẩm trong đơn hàng
           for (const item of order.order) {
+            // Lấy thông tin sản phẩm
             const product = await getSingleItem(
               COLLECTION_IDS.products,
               item.$id
             );
+
             if (product) {
+              // 1. Cập nhật số lượng tồn kho của sản phẩm (code hiện tại)
               const currentStock = product.stock || 0;
               const newStock = Math.max(0, currentStock - item.count);
-
               await updateItem(COLLECTION_IDS.products, item.$id, {
                 stock: newStock,
               });
 
-              // Kiểm tra nếu tồn kho thấp hơn ngưỡng, thông báo
-              if (newStock <= (product.minStock || 0)) {
-                // Hiển thị thông báo tồn kho thấp (có thể thêm thông báo push sau này)
-                Alert.alert(
-                  t("stock_alert"),
-                  t("low_stock_message").replace("{product}", product.name),
-                  [{ text: "OK" }]
-                );
+              // 2. Trừ nguyên liệu từ kho hàng dựa trên công thức
+              // Tìm công thức có sản phẩm này là đầu ra
+              const recipes = await getAllItem(COLLECTION_IDS.recipes);
+
+              // Lọc thủ công các công thức phù hợp
+              const matchingRecipes = recipes.filter((recipe) => {
+                // Kiểm tra nếu output là mảng
+                if (Array.isArray(recipe.output)) {
+                  return recipe.output.some((outputStr: any) =>
+                    outputStr.startsWith(`${item.$id}:`)
+                  );
+                }
+                // Nếu output là chuỗi duy nhất
+                else if (typeof recipe.output === "string") {
+                  return recipe.output.startsWith(`${item.$id}:`);
+                }
+                return false;
+              });
+
+              if (matchingRecipes.length > 0) {
+                const recipe = matchingRecipes[0];
+
+                // Trích xuất thông tin nguyên liệu
+                const ingredients = extractIngredientsFromRecipe(recipe);
+
+                // Tạo bút toán xuất kho cho từng nguyên liệu
+                for (const ingredient of ingredients) {
+                  // Tính số lượng nguyên liệu cần trừ dựa trên số lượng sản phẩm bán
+                  const ingredientQuantity = ingredient.quantity * item.count;
+
+                  // Tạo bút toán xuất kho
+                  await createItem(COLLECTION_IDS.warehouse, {
+                    productName: ingredient.name,
+                    quantity: -ingredientQuantity, // Số âm để thể hiện xuất kho
+                    transactionDate: new Date().toISOString(),
+                    note: `Sử dụng cho đơn hàng: ${result.$id}`,
+                  });
+                }
               }
             }
           }

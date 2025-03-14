@@ -570,7 +570,7 @@ const StatisticScreen = () => {
       } else if (timeFrame === "week") {
         // Hiển thị ngày trong tuần với ngày tháng năm đầy đủ
         const weekdays = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
-        return `${weekdays[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}`;
+        return `${weekdays[d.getDay()]}`;
       } else {
         // Hiển thị ngày tháng năm đầy đủ
         return `${d.getDate()}/${d.getMonth() + 1}`;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { View, ViewStyle, TextStyle, Alert } from "react-native";
 import {
   Layout,
@@ -68,9 +68,15 @@ const UpdateStockScreen: React.FC<UpdateStockProps> = ({
       const newMinStock = parseInt(minStock.replace(/\D/g, ""));
       const newPrice = parseInt(price.replace(/\D/g, ""));
 
-      // Lấy thông tin user preferences
-      const userPrefs = await getUserPrefs();
+      // Lấy tất cả giao dịch cũ của sản phẩm này
+      const oldTransactions = await getAllItem(COLLECTION_IDS.warehouse, [
+        Query.equal("productName", item.name),
+      ]);
 
+      // Xóa tất cả giao dịch cũ
+      for (const transaction of oldTransactions) {
+        await deleteItem(COLLECTION_IDS.warehouse, transaction.$id);
+      }
       // Sử dụng getAllItem đã khai báo ở cấp component
       const warehouseItems = await getAllItem(COLLECTION_IDS.warehouse, [
         Query.equal("productName", item.name),
@@ -209,35 +215,34 @@ const UpdateStockScreen: React.FC<UpdateStockProps> = ({
             )}
           />
 
-          <View style={styles.rowInputs as ViewStyle}>
-            <Input
-              label={t("quantity")}
-              {...useMaskedInputProps({
-                value: quantity,
-                onChangeText: (masked, unmasked) => setQuantity(unmasked),
-                mask: vndMask,
-              })}
-              keyboardType="numeric"
-              placeholder={t("enter_quantity")}
-              style={[styles.input as TextStyle, styles.halfInput as TextStyle]}
-              accessoryLeft={(props) => <Icon {...props} name="cube-outline" />}
-            />
+          {/* Thay đổi từ layout hàng ngang sang hàng dọc */}
+          <Input
+            label={t("quantity")}
+            {...useMaskedInputProps({
+              value: quantity,
+              onChangeText: (masked, unmasked) => setQuantity(unmasked),
+              mask: vndMask,
+            })}
+            keyboardType="numeric"
+            placeholder={t("enter_quantity")}
+            style={styles.input as TextStyle}
+            accessoryLeft={(props) => <Icon {...props} name="cube-outline" />}
+          />
 
-            <Input
-              label={t("min_stock")}
-              {...useMaskedInputProps({
-                value: minStock,
-                onChangeText: (masked, unmasked) => setMinStock(unmasked),
-                mask: vndMask,
-              })}
-              keyboardType="numeric"
-              placeholder={t("enter_min_stock")}
-              style={[styles.input as TextStyle, styles.halfInput as TextStyle]}
-              accessoryLeft={(props) => (
-                <Icon {...props} name="alert-triangle-outline" />
-              )}
-            />
-          </View>
+          <Input
+            label={t("min_stock")}
+            {...useMaskedInputProps({
+              value: minStock,
+              onChangeText: (masked, unmasked) => setMinStock(unmasked),
+              mask: vndMask,
+            })}
+            keyboardType="numeric"
+            placeholder={t("enter_min_stock")}
+            style={styles.input as TextStyle}
+            accessoryLeft={(props) => (
+              <Icon {...props} name="alert-triangle-outline" />
+            )}
+          />
 
           <Input
             label={t("price")}
@@ -329,10 +334,7 @@ const styleSheet = StyleService.create({
     marginBottom: 16,
     borderRadius: 8,
   },
-  rowInputs: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
+
   halfInput: {
     width: "48%",
   },

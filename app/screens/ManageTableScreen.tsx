@@ -111,7 +111,18 @@ const TableCardDetailModal: React.FC<TableCardDetailModalProps> = ({
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editingName, setEditingName] = useState(table.name);
+  const [menuVisible, setMenuVisible] = useState(false);
 
+  useEffect(() => {
+    if (visible) {
+      setIsEditing(false);
+      setEditingName(table.name);
+    }
+  }, [visible, table]);
+
+  const toggleMenu = () => {
+    setMenuVisible(!menuVisible);
+  };
   useEffect(() => {
     if (visible) {
       setIsEditing(false);
@@ -191,7 +202,10 @@ const TableCardDetailModal: React.FC<TableCardDetailModalProps> = ({
     <Modal
       visible={visible}
       backdropStyle={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
-      onBackdropPress={onClose}
+      onBackdropPress={() => {
+        setMenuVisible(false);
+        onClose();
+      }}
     >
       <View
         style={{
@@ -201,6 +215,92 @@ const TableCardDetailModal: React.FC<TableCardDetailModalProps> = ({
           overflow: "hidden",
         }}
       >
+        {/* Header với nút "..." */}
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: 12,
+            backgroundColor: theme["color-primary-500"],
+          }}
+        >
+          <Text category="h6" style={{ color: "white" }}>
+            {isEditing ? t("edit_table") : table.name}
+          </Text>
+
+          {!isEditing && (
+            <TouchableOpacity onPress={toggleMenu}>
+              <Icon
+                name="more-vertical"
+                fill="white"
+                style={{ width: 24, height: 24 }}
+              />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Dropdown menu */}
+        {menuVisible && !isEditing && (
+          <View
+            style={{
+              position: "absolute",
+              top: 55,
+              right: 12,
+              backgroundColor: "white",
+              borderRadius: 4,
+              borderWidth: 1,
+              borderColor: theme["color-basic-300"],
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.23,
+              shadowRadius: 2.62,
+              elevation: 4,
+              zIndex: 999,
+            }}
+          >
+            <TouchableOpacity
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                padding: 12,
+                borderBottomWidth: 1,
+                borderBottomColor: theme["color-basic-300"],
+              }}
+              onPress={() => {
+                setMenuVisible(false);
+                setIsEditing(true);
+              }}
+            >
+              <Icon
+                name="edit-outline"
+                fill={theme["color-primary-500"]}
+                style={{ width: 20, height: 20, marginRight: 8 }}
+              />
+              <Text>{t("edit")}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                padding: 12,
+              }}
+              onPress={() => {
+                setMenuVisible(false);
+                handleDeleteTable();
+              }}
+            >
+              <Icon
+                name="trash-2-outline"
+                fill={theme["color-danger-500"]}
+                style={{ width: 20, height: 20, marginRight: 8 }}
+              />
+              <Text status="danger">{t("delete")}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Phần nội dung có thể cuộn */}
         <View style={{ maxHeight: "80%" }}>
           <Card disabled style={{ borderRadius: 0 }}>
@@ -216,10 +316,8 @@ const TableCardDetailModal: React.FC<TableCardDetailModalProps> = ({
                 />
               </View>
             ) : (
-              // Hiển thị tên bàn
-              <Text category="h5" style={styles.modalTitle as TextStyle}>
-                {table.name}
-              </Text>
+              // Hiển thị tên bàn (có thể bỏ đi vì đã hiển thị ở header)
+              <View style={{ height: 8 }}></View>
             )}
             <Text category="s1" appearance="hint">
               {t("today_table_orders")} ({new Date().toLocaleDateString()})
@@ -297,57 +395,35 @@ const TableCardDetailModal: React.FC<TableCardDetailModalProps> = ({
 
         <Divider />
 
-        {/* Nút thao tác - thay đổi theo trạng thái sửa/xem */}
-        <View
-          style={{
-            flexDirection: "row",
-            padding: 16,
-            backgroundColor: "white",
-          }}
-        >
-          {isEditing ? (
-            // Nút khi đang sửa
-            <>
-              <Button
-                appearance="outline"
-                status="basic"
-                style={{ flex: 1, marginRight: 8 }}
-                onPress={() => {
-                  setIsEditing(false);
-                  setEditingName(table.name); // Reset về giá trị ban đầu
-                }}
-              >
-                {t("cancel")}
-              </Button>
-              <Button
-                status="primary"
-                style={{ flex: 1, marginLeft: 8 }}
-                onPress={handleSaveEdit}
-              >
-                {t("save")}
-              </Button>
-            </>
-          ) : (
-            // Nút khi đang xem
-            <>
-              <Button
-                appearance="outline"
-                status="danger"
-                style={{ flex: 1, marginRight: 8 }}
-                onPress={handleDeleteTable}
-              >
-                {t("delete")}
-              </Button>
-              <Button
-                status="primary"
-                style={{ flex: 1, marginLeft: 8 }}
-                onPress={() => setIsEditing(true)}
-              >
-                {t("edit")}
-              </Button>
-            </>
-          )}
-        </View>
+        {/* Nút thao tác - chỉ hiển thị khi đang sửa */}
+        {isEditing && (
+          <View
+            style={{
+              flexDirection: "row",
+              padding: 16,
+              backgroundColor: "white",
+            }}
+          >
+            <Button
+              appearance="outline"
+              status="basic"
+              style={{ flex: 1, marginRight: 8 }}
+              onPress={() => {
+                setIsEditing(false);
+                setEditingName(table.name); // Reset về giá trị ban đầu
+              }}
+            >
+              {t("cancel")}
+            </Button>
+            <Button
+              status="primary"
+              style={{ flex: 1, marginLeft: 8 }}
+              onPress={handleSaveEdit}
+            >
+              {t("save")}
+            </Button>
+          </View>
+        )}
       </View>
     </Modal>
   );

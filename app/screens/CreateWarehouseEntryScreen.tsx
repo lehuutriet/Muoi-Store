@@ -127,41 +127,35 @@ const CreateWarehouseEntryScreen: React.FC<CreateOrderScreenProps> = ({
             )}
           />
 
-          <View style={styles.rowInputContainer as ViewStyle}>
-            <View style={styles.rowInput as ViewStyle}>
-              <Input
-                label={t("quantity")}
-                {...useMaskedInputProps({
-                  value: quantity,
-                  onChangeText: (masked, unmasked) => setQuantity(unmasked),
-                  mask: vndMask,
-                })}
-                keyboardType="numeric"
-                placeholder={t("enter_quantity")}
-                style={styles.input as TextStyle}
-                accessoryLeft={(props) => (
-                  <Icon {...props} name="cube-outline" />
-                )}
-              />
-            </View>
-
-            <View style={styles.rowInput as ViewStyle}>
-              <Input
-                label={t("min_stock")}
-                {...useMaskedInputProps({
-                  value: minStock,
-                  onChangeText: (masked, unmasked) => setMinStock(unmasked),
-                  mask: vndMask,
-                })}
-                keyboardType="numeric"
-                placeholder={t("enter_min_stock")}
-                style={styles.input as TextStyle}
-                accessoryLeft={(props) => (
-                  <Icon {...props} name="alert-triangle-outline" />
-                )}
-              />
-            </View>
+          <View style={styles.rowInput as ViewStyle}>
+            <Input
+              label={t("quantity")}
+              {...useMaskedInputProps({
+                value: quantity,
+                onChangeText: (masked, unmasked) => setQuantity(unmasked),
+                mask: vndMask,
+              })}
+              keyboardType="numeric"
+              placeholder={t("enter_quantity")}
+              style={styles.input as TextStyle}
+              accessoryLeft={(props) => <Icon {...props} name="cube-outline" />}
+            />
           </View>
+
+          <Input
+            label={t("min_stock")}
+            {...useMaskedInputProps({
+              value: minStock,
+              onChangeText: (masked, unmasked) => setMinStock(unmasked),
+              mask: vndMask,
+            })}
+            keyboardType="numeric"
+            placeholder={t("enter_min_stock")}
+            style={styles.input as TextStyle}
+            accessoryLeft={(props) => (
+              <Icon {...props} name="alert-triangle-outline" />
+            )}
+          />
 
           <Input
             label={t("import_price")}
@@ -255,10 +249,7 @@ const styleSheet = StyleService.create({
     marginBottom: 16,
     borderRadius: 8,
   },
-  rowInputContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
+
   rowInput: {
     flex: 1,
     marginHorizontal: 4,

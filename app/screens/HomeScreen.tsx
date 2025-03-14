@@ -69,6 +69,7 @@ type RootStackParamList = {
   ManageTableScreen: undefined;
   WarehouseScreen: undefined;
   StatisticScreen: undefined;
+  RecipeScreen: undefined;
 };
 
 type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList>;
@@ -221,6 +222,12 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
       color: ["#FFC75F", "#F9B248"] as const,
       onPress: () => navigation.navigate("StatisticScreen"),
     },
+    {
+      title: t("recipes"),
+      icon: "book-outline",
+      color: ["#9C8BE0", "#7E57C2"],
+      onPress: () => navigation.navigate("RecipeScreen"),
+    },
   ];
 
   const actions = [
@@ -284,7 +291,16 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
                   <Text category="c1" style={styles.statLabel as TextStyle}>
                     {t("today_revenue1")}
                   </Text>
-                  <Text category="h6" style={styles.statValue as TextStyle}>
+                  <Text
+                    category="h6"
+                    style={
+                      [
+                        styles.statValue,
+                        { fontSize: 14 },
+                      ] as unknown as TextStyle
+                    }
+                    numberOfLines={2}
+                  >
                     {new Intl.NumberFormat("vi-VN", {
                       maximumFractionDigits: 0,
                     }).format(todayRevenue) + "đ"}
@@ -366,99 +382,6 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
             </View>
           </Animated.View>
 
-          {/* Low Stock Alert Section */}
-          {lowStockProducts.length > 0 && (
-            <Animated.View
-              entering={FadeInDown.delay(400)}
-              style={styles.alertsContainer as ViewStyle}
-            >
-              <View style={styles.alertsHeader as ViewStyle}>
-                <Icon
-                  name="alert-triangle-outline"
-                  fill="#FF3D71"
-                  style={{ width: 24, height: 24, marginRight: 8 }}
-                />
-                <Text category="h6" style={styles.alertsTitle as TextStyle}>
-                  {t("stock_alerts")} ({lowStockProducts.length})
-                </Text>
-              </View>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.alertsScroll as ViewStyle}
-              >
-                {lowStockProducts.map((product) => (
-                  <TouchableOpacity
-                    key={product.$id}
-                    onPress={() => navigation.navigate("WarehouseScreen")}
-                    style={styles.alertCard as ViewStyle}
-                  >
-                    <View style={styles.alertCardContent as ViewStyle}>
-                      <View style={styles.alertImageContainer as ViewStyle}>
-                        {product.photoUrl ? (
-                          <ImageBackground
-                            source={{ uri: product.photoUrl }}
-                            style={styles.alertImage as ViewStyle}
-                            imageStyle={{ borderRadius: 8 }}
-                          />
-                        ) : (
-                          <View
-                            style={styles.alertImagePlaceholder as ViewStyle}
-                          >
-                            <Icon
-                              name="image-outline"
-                              fill="#CED4DA"
-                              style={{ width: 24, height: 24 }}
-                            />
-                          </View>
-                        )}
-                      </View>
-                      <Text
-                        category="s1"
-                        style={styles.alertProductName as TextStyle}
-                        numberOfLines={1}
-                      >
-                        {product.name}
-                      </Text>
-                      <View style={styles.alertStockInfo as ViewStyle}>
-                        <Text
-                          status={
-                            (product.stock ?? 0) === 0 ? "danger" : "warning"
-                          }
-                          category="c1"
-                          style={styles.alertStatusText as TextStyle}
-                        >
-                          {(product.stock ?? 0) === 0
-                            ? t("out_of_stock")
-                            : t("low_stock")}
-                        </Text>
-                        <Text
-                          category="c1"
-                          style={styles.alertStockText as TextStyle}
-                        >
-                          {t("stock")}: {product.stock ?? 0} /{" "}
-                          {product.minStock ?? 0}
-                        </Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              <Button
-                appearance="ghost"
-                status="basic"
-                size="small"
-                accessoryRight={(props) => (
-                  <Icon {...props} name="arrow-forward-outline" />
-                )}
-                onPress={() => navigation.navigate("WarehouseScreen")}
-                style={styles.viewAllButton as ViewStyle}
-              >
-                {t("view_all")}
-              </Button>
-            </Animated.View>
-          )}
-
           {/* Bottom padding */}
           <View style={{ height: 100 }} />
         </ScrollView>
@@ -532,6 +455,7 @@ const styleSheet = StyleService.create({
     width: (width - 35) / 3,
     borderRadius: 12,
     padding: 1,
+    height: 130, // Tăng chiều cao của card
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -540,6 +464,11 @@ const styleSheet = StyleService.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  statValue: {
+    textAlign: "center",
+    fontWeight: "bold",
+    flexWrap: "wrap", // Cho phép text được wrap xuống dòng
   },
   revenueCard: {
     backgroundColor: "#E3F2FD",
@@ -563,10 +492,7 @@ const styleSheet = StyleService.create({
     textAlign: "center",
     marginBottom: 4,
   },
-  statValue: {
-    textAlign: "center",
-    fontWeight: "bold",
-  },
+
   featuresContainer: {
     paddingHorizontal: 16,
     marginBottom: 24,

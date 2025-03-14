@@ -59,6 +59,7 @@ export const COLLECTION_IDS = {
   tables: "tables",
   returns: "returns",
   warehouse: "warehouse",
+  recipes: "recipes",
   // store: 'store'
 };
 interface GraphQLResponse {
@@ -135,17 +136,13 @@ export function useAccounts() {
   };
 
   const updateUserPrefs = async (prefs = {}) => {
-    console.log("updateUserPrefs called::", prefs);
-
     return account
       .updatePrefs(prefs)
       .then(
         function (response) {
-          console.log("updateUserPrefs success::", response); // Success
           return true;
         },
         function (error) {
-          console.log("updateUserPrefs err:", error); // Failure
           return false;
         }
       )
@@ -209,9 +206,8 @@ export function useAccounts() {
       // if (!sessionId) return false;
 
       try {
-        console.log("get-sessionId start::");
         const response = await account.getSession("current");
-        console.log("get-sessionId end::");
+
         return response;
       } catch (err) {
         // await AsyncStorage.removeItem("currentSessionID");
@@ -307,19 +303,38 @@ export function useDatabases() {
   if (!context) {
     throw new Error("AppwriteContext must be used within AppwriteProvider");
   }
-  const { databases } = context;
+  const { databases, account } = context;
   const { getUserPrefs } = useAccounts();
   const { getFileView } = useStorage();
+  async function getCurrentUserId() {
+    try {
+      // Lấy thông tin user thay vì session
+      const user = await account.get();
 
+      return user.$id; // ID của user
+    } catch (error) {
+      console.error("Error getting user info:", error);
+      return null;
+    }
+  }
   // Products Databases Function
   async function getAllItem(collectionId: any, queries: string[] = []) {
     const userPrefs = await getUserPrefs();
+    const userId = await getCurrentUserId();
+
+    // Thêm điều kiện lọc theo userId
+    let finalQueries = [...queries];
+    if (collectionId !== COLLECTION_IDS.products && userId) {
+      finalQueries.push(Query.equal("userId", userId));
+    }
+
     const items = await databases.listDocuments(
       userPrefs.DATABASE_ID,
       collectionId,
-      queries
+      finalQueries
     );
-    // console.log("getAllItem called::", items.documents);
+
+    // Phần còn lại của code không thay đổi
     if (collectionId === COLLECTION_IDS.products) {
       return await Promise.all(
         items.documents.map(async (item: any) => ({
@@ -328,7 +343,6 @@ export function useDatabases() {
           count: 0,
         }))
       );
-      // return items.documents;
     } else {
       return items.documents;
     }
@@ -354,11 +368,26 @@ export function useDatabases() {
       throw new Error("Database ID not found in user preferences");
     }
 
+    // Lấy userId từ phiên đăng nhập hiện tại
+    const session = await account.getSession("current");
+    console.log("Session when creating:", JSON.stringify(session, null, 2));
+
+    const userId = session.userId;
+    console.log("User ID for creating:", userId);
+
+    // Thêm userId cho mọi collection trừ products
+    let finalData = { ...data };
+    if (collectionId !== COLLECTION_IDS.products && userId) {
+      finalData.userId = userId;
+    }
+
+    console.log("Final data to save:", finalData);
+
     return databases.createDocument(
       userPrefs.DATABASE_ID,
       collectionId,
       ID.unique(),
-      data
+      finalData
     );
   }
   async function updateItem(collectionId: any, itemID: any, data: any) {
@@ -527,19 +556,15 @@ export function useStorage() {
           );
           if (matchingFile) {
             fullFileID = matchingFile.$id;
-            console.log("Found matching file with full ID:", fullFileID);
           }
         } catch (e) {
           console.log("Could not search for full file ID:", e);
         }
       }
 
-      console.log("Attempting to get file view for ID:", fullFileID);
-
       // Trường hợp không thể phục hồi ID đầy đủ, tạo URL trực tiếp
       // Vì bạn đã biết URL đầy đủ từ log
       const directUrl = `${APPWRITE_ENDPOINT}/storage/buckets/${userPrefs.BUCKET_ID}/files/${fullFileID}/view?project=${PROJECT_ID}`;
-      console.log("Direct URL:", directUrl);
 
       return directUrl;
     } catch (error) {
