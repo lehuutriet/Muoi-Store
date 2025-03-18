@@ -31,10 +31,15 @@ import { allCategoryAtom, allProductsAtom } from "../states";
 import { FloatingAction } from "react-native-floating-action";
 import { useFocusEffect } from "@react-navigation/native";
 
+// Trong file exportWarehouseReport.ts
 import {
-  exportWarehouseReport,
   exportDetailedWarehouseReport,
+  exportFormattedExcelReport,
+  exportWarehouseReport,
 } from "../utils/exportWarehouseReport";
+
+// Thêm hàm xuất Excel đẹp
+export { exportFormattedExcelReport };
 interface WarehouseItem {
   $id: string;
   productName: string;
@@ -166,6 +171,15 @@ const WarehouseScreen: React.FC<WarehouseScreenProps> = ({ navigation }) => {
     try {
       // Hiển thị dialog để chọn kiểu báo cáo
       Alert.alert(t("export_report"), t("choose_report_type"), [
+        {
+          text: t("excel_formatted"), // Tùy chọn mới
+          onPress: async () => {
+            const success = await exportFormattedExcelReport(productStocks, t);
+            if (!success) {
+              Alert.alert("", t("export_error"));
+            }
+          },
+        },
         {
           text: t("simple_csv"),
           onPress: async () => {

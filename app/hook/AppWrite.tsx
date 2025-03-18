@@ -60,6 +60,7 @@ export const COLLECTION_IDS = {
   returns: "returns",
   warehouse: "warehouse",
   recipes: "recipes",
+  customers: "customers",
   // store: 'store'
 };
 interface GraphQLResponse {
@@ -353,11 +354,9 @@ export function useDatabases() {
       .getDocument(userPrefs.DATABASE_ID, collectionId, documentId)
       .then(
         function (response: any) {
-          console.log("getDocument success::", response); // Success
           return response;
         },
         function (error: any) {
-          console.log("getDocument err:", error); // Failure
           return false;
         }
       );

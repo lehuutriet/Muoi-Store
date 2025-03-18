@@ -23,6 +23,9 @@ export interface CurrentOrderType {
   location?: string;
   date: Date;
   order: OrderItem[];
+  customer: string;
+  customerName: string;
+  customerPhone: string;
 }
 
 export const currentOrderAtom = atom<CurrentOrderType>({
@@ -36,6 +39,9 @@ export const currentOrderAtom = atom<CurrentOrderType>({
     total: 0,
     date: new Date(),
     order: [],
+    customer: "",
+    customerName: "",
+    customerPhone: "",
   },
 });
 

@@ -33,6 +33,7 @@
     "@waymen/esc-pos-encoder": "^5.4.1",
     "appwrite": "^17.0.0",
     "compare-versions": "^6.1.1",
+    "exceljs": "^4.4.0",
     "expo": "~52.0.33",
     "expo-av": "^15.0.2",
     "expo-barcode-scanner": "14.0.1",

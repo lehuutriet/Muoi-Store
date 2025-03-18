@@ -41,6 +41,9 @@ import { DrawerContext } from "../contexts/AppContext";
 import RecipeScreen from "../screens/RecipeScreen";
 import CreateRecipeScreen from "../screens/CreateRecipeScreen";
 import EditRecipeScreen from "../screens/EditRecipeScreen";
+import LoyalCustomerScreen from "../screens/LoyalCustomerScreen";
+import AddCustomerScreen from "../screens/AddCustomerScreen";
+import EditCustomerScreen from "../screens/EditCustomerScreen";
 // Định nghĩa các tham số cho navigation
 type RootStackParamList = {
   TabNavigator: undefined;
@@ -64,6 +67,9 @@ type RootStackParamList = {
   CreateRecipeScreen: undefined;
   RecipeScreen: undefined;
   EditRecipeScreen: { recipe: any };
+  LoyalCustomerScreen: undefined;
+  AddCustomerScreen: undefined;
+  EditCustomerScreen: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -269,6 +275,29 @@ const StackScreen: React.FC<StackScreenProps> = ({
         component={CreateRecipeScreen}
         options={{
           title: t("create_recipe"),
+        }}
+      />
+      <Stack.Screen
+        name="LoyalCustomerScreen"
+        component={LoyalCustomerScreen}
+        options={{
+          title: t("loyal_customers"),
+          headerTitleAlign: "center",
+        }}
+      />
+
+      <Stack.Screen
+        name="AddCustomerScreen"
+        component={AddCustomerScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="EditCustomerScreen"
+        component={EditCustomerScreen}
+        options={{
+          headerShown: false,
         }}
       />
     </Stack.Navigator>

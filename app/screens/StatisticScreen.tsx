@@ -32,6 +32,10 @@ import { LineChart, BarChart, PieChart } from "react-native-gifted-charts";
 import { exportToCSV } from "../utils/exportStatistics";
 import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
+import {
+  exportFormattedReturnReport,
+  exportFormattedStatsReport,
+} from "../utils/exportWarehouseReport";
 const { width } = Dimensions.get("window");
 
 // Định nghĩa các interface
@@ -477,77 +481,150 @@ const StatisticScreen = () => {
   }, []);
   const handleExportCSV = async () => {
     try {
-      if (selectedIndex === 1) {
-        // Định dạng dữ liệu cho báo cáo trả hàng
-        const returnStatisticsData = {
-          isReturnReport: true,
-          reportType: t("returns_report"),
-          timeFrame: "returns",
-          totalReturns: returnOrders.length,
-          totalReturnValue: totalReturnValue,
-          returnReasons: returnReasons,
-          returnedOrders: returnOrders.map((order) => ({
-            $id: order.$id,
-            returnDate: order.returnDate || order.$createdAt,
-            returnReason: order.returnReason || t("unknown_reason"),
-            totalReturnAmount: order.totalReturnAmount || order.total || 0,
-          })),
-        };
+      // Hiển thị dialog để chọn kiểu báo cáo
+      Alert.alert(t("export_report"), t("choose_report_type"), [
+        {
+          text: t("excel_formatted"), // Thêm tùy chọn mới với định dạng đẹp
+          onPress: async () => {
+            // Định dạng dữ liệu tùy theo tab đang chọn
+            if (selectedIndex === 1) {
+              // Tab trả hàng
+              const returnStatisticsData = {
+                isReturnReport: true,
+                reportType: t("returns_report"),
+                timeFrame: "returns",
+                totalReturns: returnOrders.length,
+                totalReturnValue: totalReturnValue,
+                returnReasons: returnReasons,
+                returnedOrders: returnOrders.map((order) => ({
+                  $id: order.$id,
+                  returnDate: order.returnDate || order.$createdAt,
+                  returnReason: order.returnReason || t("unknown_reason"),
+                  totalReturnAmount:
+                    order.totalReturnAmount || order.total || 0,
+                })),
+              };
 
-        // Gọi hàm xuất CSV với dữ liệu báo cáo trả hàng
-        const success = await exportToCSV(returnStatisticsData, t);
+              // Gọi hàm xuất báo cáo với định dạng đẹp cho báo cáo trả hàng
+              await exportFormattedReturnReport(returnStatisticsData, t);
+            } else {
+              // Tab thống kê thông thường
+              const statisticsData = {
+                reportType:
+                  timeFrame === "day"
+                    ? t("daily_report")
+                    : timeFrame === "week"
+                      ? t("weekly_report")
+                      : timeFrame === "month"
+                        ? t("monthly_report")
+                        : t("custom_report"),
+                timeFrame,
+                revenueByDate: revenueByDateFormatted,
+                period:
+                  timeFrame === "custom"
+                    ? `${t("period")}: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
+                    : `${t("period")}: ${timeFrame}`,
+                totalRevenue,
+                totalProfit,
+                totalOrders,
+                paidOrders,
+                unpaidOrders,
+                avgOrderValue,
+                maxOrderValue,
+                minOrderValue,
+                morningRevenue,
+                noonRevenue,
+                eveningRevenue,
+                dineInRevenue,
+                takeAwayRevenue,
+                deliveryRevenue,
+                topProducts,
+                startDate,
+                endDate,
+                peakSellingTimes: hourlyData,
+              };
 
-        if (success) {
-          console.log("Xuất báo cáo trả hàng thành công");
-        } else {
-          console.error("Xuất báo cáo trả hàng thất bại");
-        }
-      } else {
-        // Định dạng dữ liệu cho báo cáo doanh thu và đơn hàng thông thường
-        const statisticsData = {
-          reportType:
-            timeFrame === "day"
-              ? t("daily_report")
-              : timeFrame === "week"
-                ? t("weekly_report")
-                : timeFrame === "month"
-                  ? t("monthly_report")
-                  : t("custom_report"),
-          timeFrame,
-          revenueByDate: revenueByDateFormatted,
-          period:
-            timeFrame === "custom"
-              ? `${t("period")}: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
-              : `${t("period")}: ${timeFrame}`,
-          totalRevenue,
-          totalProfit,
-          totalOrders,
-          paidOrders,
-          unpaidOrders,
-          avgOrderValue,
-          maxOrderValue,
-          minOrderValue,
-          morningRevenue,
-          noonRevenue,
-          eveningRevenue,
-          dineInRevenue,
-          takeAwayRevenue,
-          deliveryRevenue,
-          topProducts,
-          startDate,
-          endDate,
-          peakSellingTimes: hourlyData,
-        };
+              // Gọi hàm xuất báo cáo với định dạng đẹp cho báo cáo thống kê
+              await exportFormattedStatsReport(statisticsData, t);
+            }
+          },
+        },
+        {
+          text: t("csv_format"), // Tùy chọn CSV tiêu chuẩn
+          onPress: async () => {
+            if (selectedIndex === 1) {
+              // Định dạng dữ liệu cho báo cáo trả hàng
+              const returnStatisticsData = {
+                isReturnReport: true,
+                reportType: t("returns_report"),
+                timeFrame: "returns",
+                totalReturns: returnOrders.length,
+                totalReturnValue: totalReturnValue,
+                returnReasons: returnReasons,
+                returnedOrders: returnOrders.map((order) => ({
+                  $id: order.$id,
+                  returnDate: order.returnDate || order.$createdAt,
+                  returnReason: order.returnReason || t("unknown_reason"),
+                  totalReturnAmount:
+                    order.totalReturnAmount || order.total || 0,
+                })),
+              };
 
-        // Gọi hàm xuất CSV với dữ liệu báo cáo thông thường
-        const success = await exportToCSV(statisticsData, t);
+              // Gọi hàm xuất CSV với dữ liệu báo cáo trả hàng
+              const success = await exportToCSV(returnStatisticsData, t);
+              if (!success) {
+                console.error("Xuất báo cáo trả hàng thất bại");
+              }
+            } else {
+              // Định dạng dữ liệu cho báo cáo doanh thu và đơn hàng thông thường
+              const statisticsData = {
+                reportType:
+                  timeFrame === "day"
+                    ? t("daily_report")
+                    : timeFrame === "week"
+                      ? t("weekly_report")
+                      : timeFrame === "month"
+                        ? t("monthly_report")
+                        : t("custom_report"),
+                timeFrame,
+                revenueByDate: revenueByDateFormatted,
+                period:
+                  timeFrame === "custom"
+                    ? `${t("period")}: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
+                    : `${t("period")}: ${timeFrame}`,
+                totalRevenue,
+                totalProfit,
+                totalOrders,
+                paidOrders,
+                unpaidOrders,
+                avgOrderValue,
+                maxOrderValue,
+                minOrderValue,
+                morningRevenue,
+                noonRevenue,
+                eveningRevenue,
+                dineInRevenue,
+                takeAwayRevenue,
+                deliveryRevenue,
+                topProducts,
+                startDate,
+                endDate,
+                peakSellingTimes: hourlyData,
+              };
 
-        if (success) {
-          console.log("Xuất báo cáo doanh thu thành công");
-        } else {
-          console.error("Xuất báo cáo doanh thu thất bại");
-        }
-      }
+              // Gọi hàm xuất CSV với dữ liệu báo cáo thông thường
+              const success = await exportToCSV(statisticsData, t);
+              if (!success) {
+                console.error("Xuất báo cáo doanh thu thất bại");
+              }
+            }
+          },
+        },
+        {
+          text: t("cancel"),
+          style: "cancel",
+        },
+      ]);
     } catch (error) {
       console.error("Lỗi khi xuất báo cáo:", error);
       Alert.alert("", t("export_error"));

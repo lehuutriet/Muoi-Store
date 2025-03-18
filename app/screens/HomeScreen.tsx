@@ -70,6 +70,7 @@ type RootStackParamList = {
   WarehouseScreen: undefined;
   StatisticScreen: undefined;
   RecipeScreen: undefined;
+  LoyalCustomerScreen: undefined;
 };
 
 type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList>;
@@ -185,7 +186,7 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
     {
       title: t("create_order"),
       icon: "shopping-cart-outline",
-      color: ["#FF6B6B", "#FF8E8E"] as const,
+      color: ["#FF6B6B", "#FF8E8E"] as [string, string],
       onPress: () =>
         navigation.navigate("CreateOrderScreen", {
           title: t("create_order"),
@@ -225,8 +226,14 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
     {
       title: t("recipes"),
       icon: "book-outline",
-      color: ["#9C8BE0", "#7E57C2"],
+      color: ["#9C8BE0", "#7E57C2"] as [string, string],
       onPress: () => navigation.navigate("RecipeScreen"),
+    },
+    {
+      title: t("loyal_customers"),
+      icon: "people-outline",
+      color: ["#B06AB3", "#4568DC"] as const,
+      onPress: () => navigation.navigate("LoyalCustomerScreen"),
     },
   ];
 

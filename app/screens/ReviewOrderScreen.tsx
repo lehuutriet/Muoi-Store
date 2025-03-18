@@ -3,7 +3,6 @@ import React, { useState, useEffect } from "react";
 import {
   ScrollView,
   StyleSheet,
-  // Text,
   TouchableOpacity,
   View,
   Image,
@@ -35,6 +34,8 @@ import {
   NativeDateService,
   Modal,
   Spinner,
+  ListItem,
+  Avatar,
 } from "@ui-kitten/components";
 import { WaitingModal } from "../components/common";
 import { createNumberMask, useMaskedInputProps } from "react-native-mask-input";
@@ -52,17 +53,20 @@ import { useDatabases, COLLECTION_IDS } from "../hook/AppWrite";
 import * as RootNavigation from "../navigator/RootNavigation";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Query } from "appwrite";
+
 const vndMask = createNumberMask({
-  // prefix: ['đ'],
   delimiter: ",",
   separator: ",",
   precision: 3,
 });
 
+const { width, height } = Dimensions.get("window");
+
 interface Table {
   $id: string;
   name: string;
 }
+
 interface OrderItem {
   $id: string;
   name: string;
@@ -71,14 +75,25 @@ interface OrderItem {
   count: number;
 }
 
+interface Customer {
+  $id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  points: number;
+  totalSpent: number;
+
+  lastVisit?: string;
+  joinDate?: string;
+  notes?: string;
+}
+
 type RootStackParamList = {
   ReviewOrderScreen: { orderInfo?: any };
   ReceiptScreen: { receiptData: any };
   CreateOrderScreen: { method: string };
-  // Thêm các màn hình khác mà bạn cần điều hướng từ ReviewOrderScreen
+  AddCustomerScreen: { onCustomerCreated: (customer: any) => void };
 };
-
-// Sử dụng NativeStackScreenProps để định nghĩa props
 type ReviewOrderScreenProps = NativeStackScreenProps<
   RootStackParamList,
   "ReviewOrderScreen"
@@ -104,13 +119,39 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
     new IndexPath(0)
   );
 
-  // Trong phần khai báo state
-  const [selectedLocationIndex, setSelectedLocationIndex] =
-    React.useState<IndexPath>(
-      new IndexPath(0) // Mặc định là 'dine-in'
-    );
+  // State cho khách hàng
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
+    null
+  );
 
-  // Trong useEffect khởi tạo
+  const [searchQuery, setSearchQuery] = useState("");
+  // Trong ReviewOrderScreen, thêm vào hoặc sửa đoạn code hiện tại
+  const [customerModalVisible, setCustomerModalVisible] = useState(false);
+
+  // Thêm useEffect để tải lại danh sách khách hàng khi mở modal
+  useEffect(() => {
+    if (customerModalVisible) {
+      // Tải lại danh sách khách hàng mỗi khi modal mở
+      const loadCustomers = async () => {
+        try {
+          const customersData = await getAllItem(COLLECTION_IDS.customers);
+          setCustomers(customersData || []);
+          setFilteredCustomers(customersData || []);
+        } catch (error) {
+          console.error("Error loading customers:", error);
+        }
+      };
+
+      loadCustomers();
+    }
+  }, [customerModalVisible]);
+  // State cho vị trí đơn hàng
+  const [selectedLocationIndex, setSelectedLocationIndex] =
+    React.useState<IndexPath>(new IndexPath(0));
+
+  // Khởi tạo từ order
   useEffect(() => {
     console.log("userInfo::", userInfo);
 
@@ -120,7 +161,7 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
       tableIndex = tableIndex >= 0 ? tableIndex + 1 : 0;
       setSelectedTableIndex(new IndexPath(tableIndex));
 
-      // Thêm phần khởi tạo vị trí
+      // Khởi tạo vị trí
       const locationTypes = ["dine-in", "take-away", "delivery"];
       const locationIndex = locationTypes.indexOf(order.location || "dine-in");
       setSelectedLocationIndex(
@@ -129,6 +170,72 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
     }
   }, []);
 
+  // Tải danh sách khách hàng
+  useEffect(() => {
+    const loadCustomers = async () => {
+      try {
+        const customersData = await getAllItem(COLLECTION_IDS.customers);
+        setCustomers(customersData || []);
+        setFilteredCustomers(customersData || []);
+      } catch (error) {
+        console.error("Error loading customers:", error);
+      }
+    };
+
+    loadCustomers();
+  }, []);
+
+  // Kiểm tra nếu có customer ID từ order
+  useEffect(() => {
+    const checkCustomer = async () => {
+      if (order && order.customer && !selectedCustomer) {
+        try {
+          const customerData = await getSingleItem(
+            COLLECTION_IDS.customers,
+            order.customer
+          );
+          if (customerData) {
+            setSelectedCustomer(customerData);
+          }
+        } catch (error) {
+          console.error("Lỗi khi tải thông tin khách hàng:", error);
+        }
+      }
+    };
+
+    checkCustomer();
+  }, [order]);
+
+  // Lọc khách hàng theo từ khóa tìm kiếm
+  useEffect(() => {
+    if (!searchQuery) {
+      setFilteredCustomers(customers);
+    } else {
+      const filtered = customers.filter(
+        (customer) =>
+          customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          customer.phone.includes(searchQuery)
+      );
+      setFilteredCustomers(filtered);
+    }
+  }, [searchQuery, customers]);
+
+  // Thêm hàm xử lý khi chọn khách hàng
+  const handleSelectCustomer = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setCustomerModalVisible(false);
+    setSearchQuery("");
+
+    // Cập nhật thông tin khách hàng vào đơn hàng
+    setOrder({
+      ...order,
+      customer: customer.$id,
+      customerName: customer.name,
+      customerPhone: customer.phone,
+    });
+  };
+
+  // Tính toán giá đơn hàng
   useEffect(() => {
     if (order && order.order && order.order.length > 0) {
       let sum = order.order.reduce((acc, item) => {
@@ -202,6 +309,7 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
         cancelable: true,
       }
     );
+
   const refreshProductList = useRecoilCallback(
     ({ set }) =>
       async () => {
@@ -221,6 +329,7 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
       },
     []
   );
+
   const extractIngredientsFromRecipe = (recipe: any) => {
     try {
       if (!recipe.ingredients || !Array.isArray(recipe.ingredients)) {
@@ -245,6 +354,7 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
       return [];
     }
   };
+
   const saveOrder = async (orderStatus = "unpaid") => {
     console.log("saveOrder được gọi với status:", orderStatus);
 
@@ -280,6 +390,9 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
           discount: order.discount,
           date: order.date.toISOString(),
           total: finalPrice,
+          customer: selectedCustomer ? selectedCustomer.$id : null,
+          customerName: selectedCustomer ? selectedCustomer.name : null,
+          customerPhone: selectedCustomer ? selectedCustomer.phone : null,
         };
 
         console.log("Data sẽ lưu:", data);
@@ -294,9 +407,42 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
           result = await createItem(COLLECTION_IDS.orders, data);
         }
 
-        // Nếu đơn hàng là paid (đã thanh toán), cập nhật số lượng tồn kho
+        // Nếu đơn hàng là paid (đã thanh toán), cập nhật số lượng tồn kho và điểm khách hàng
         if (orderStatus === "cash" || orderStatus === "transfer") {
-          // Duyệt qua từng sản phẩm trong đơn hàng
+          // 1. Cập nhật điểm và chi tiêu cho khách hàng
+
+          if (selectedCustomer) {
+            try {
+              // Tính điểm thưởng (ví dụ: cứ 10,000đ được 1 điểm)
+              const pointsEarned = Math.floor(finalPrice / 10000);
+
+              // Cập nhật thông tin khách hàng - thêm finalPrice vào totalSpent
+              await updateItem(COLLECTION_IDS.customers, selectedCustomer.$id, {
+                totalSpent: (selectedCustomer.totalSpent || 0) + finalPrice,
+                points: (selectedCustomer.points || 0) + pointsEarned,
+                lastVisit: new Date().toISOString(),
+              });
+
+              console.log(
+                `Đã cập nhật điểm và tổng chi tiêu cho khách hàng: ${selectedCustomer.name}, thêm ${finalPrice} vào tổng chi tiêu`
+              );
+
+              // Hiển thị thông báo điểm cho người dùng sau khi hoàn thành
+              if (pointsEarned > 0) {
+                setTimeout(() => {
+                  Alert.alert(
+                    t("points_earned"),
+                    t("points_earned_message")
+                      .replace("{points}", pointsEarned.toString())
+                      .replace("{customer}", selectedCustomer.name)
+                  );
+                }, 500);
+              }
+            } catch (error) {
+              console.error("Lỗi khi cập nhật điểm khách hàng:", error);
+            }
+          }
+          // 2. Duyệt qua từng sản phẩm trong đơn hàng để cập nhật tồn kho
           for (const item of order.order) {
             // Lấy thông tin sản phẩm
             const product = await getSingleItem(
@@ -305,18 +451,17 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
             );
 
             if (product) {
-              // 1. Cập nhật số lượng tồn kho của sản phẩm (code hiện tại)
+              // Cập nhật số lượng tồn kho của sản phẩm
               const currentStock = product.stock || 0;
               const newStock = Math.max(0, currentStock - item.count);
               await updateItem(COLLECTION_IDS.products, item.$id, {
                 stock: newStock,
               });
 
-              // 2. Trừ nguyên liệu từ kho hàng dựa trên công thức
-              // Tìm công thức có sản phẩm này là đầu ra
+              // Trừ nguyên liệu từ kho hàng dựa trên công thức
               const recipes = await getAllItem(COLLECTION_IDS.recipes);
 
-              // Lọc thủ công các công thức phù hợp
+              // Lọc các công thức phù hợp
               const matchingRecipes = recipes.filter((recipe) => {
                 // Kiểm tra nếu output là mảng
                 if (Array.isArray(recipe.output)) {
@@ -450,6 +595,99 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
         </View>
       </View>
     </Card>
+  );
+
+  // Thêm modal chọn khách hàng
+  const renderCustomerModal = () => (
+    <Modal
+      visible={customerModalVisible}
+      backdropStyle={styles.backdrop as ViewStyle}
+      onBackdropPress={() => {
+        setCustomerModalVisible(false);
+        setSearchQuery("");
+      }}
+    >
+      <Card style={styles.modalCard as ViewStyle}>
+        <Text category="h6" style={styles.modalTitle as TextStyle}>
+          {t("select_customer")}
+        </Text>
+
+        <Input
+          placeholder={t("search_customers")}
+          style={styles.modalInput as TextStyle}
+          accessoryLeft={(props) => <Icon {...props} name="search-outline" />}
+          onChangeText={setSearchQuery}
+          value={searchQuery}
+        />
+
+        <ScrollView style={styles.customerList as ViewStyle}>
+          {filteredCustomers.length > 0 ? (
+            filteredCustomers.map((customer) => (
+              <ListItem
+                key={customer.$id}
+                title={customer.name}
+                description={`${customer.phone} • ${t("points")}: ${customer.points}`}
+                onPress={() => handleSelectCustomer(customer)}
+                accessoryLeft={(props) => (
+                  <Avatar
+                    {...props}
+                    size="small"
+                    source={require("../../assets/avatar-placeholder.png")}
+                  />
+                )}
+              />
+            ))
+          ) : (
+            <View style={styles.emptyCustomers as ViewStyle}>
+              <Icon
+                name="people-outline"
+                fill="#ddd"
+                style={styles.emptyIcon}
+              />
+              <Text appearance="hint">{t("no_customers_found")}</Text>
+            </View>
+          )}
+        </ScrollView>
+
+        <Divider style={styles.divider as ViewStyle} />
+
+        <Button
+          status="primary"
+          appearance="outline"
+          accessoryLeft={(props) => (
+            <Icon {...props} name="person-add-outline" />
+          )}
+          onPress={() => {
+            setCustomerModalVisible(false);
+            setSearchQuery("");
+            navigation.navigate("AddCustomerScreen", {
+              onCustomerCreated: (newCustomer) => {
+                setSelectedCustomer(newCustomer);
+                setOrder({
+                  ...order,
+                  customer: newCustomer.$id,
+                  customerName: newCustomer.name,
+                  customerPhone: newCustomer.phone,
+                });
+              },
+            });
+          }}
+        >
+          {t("create_new_customer")}
+        </Button>
+
+        <Button
+          style={styles.cancelButton as ViewStyle}
+          status="basic"
+          onPress={() => {
+            setCustomerModalVisible(false);
+            setSearchQuery("");
+          }}
+        >
+          {t("cancel")}
+        </Button>
+      </Card>
+    </Modal>
   );
 
   return (
@@ -635,6 +873,76 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
             <SelectItem title={t("take_away")} />
             <SelectItem title={t("delivery")} />
           </Select>
+
+          {/* Phần chọn khách hàng */}
+          <Card style={styles.section as ViewStyle}>
+            <View style={styles.sectionHeader as ViewStyle}>
+              <Text category="h6">{t("customer_information")}</Text>
+            </View>
+
+            {selectedCustomer ? (
+              <View style={styles.customerInfo as ViewStyle}>
+                <View>
+                  <Text category="s1">{selectedCustomer.name}</Text>
+                  <Text appearance="hint">{selectedCustomer.phone}</Text>
+                  {selectedCustomer.points > 0 && (
+                    <View style={styles.pointsBadge as ViewStyle}>
+                      <Icon
+                        name="award-outline"
+                        fill="#FFD700"
+                        style={{ width: 14, height: 14, marginRight: 4 }}
+                      />
+                      <Text category="c1" status="warning">
+                        {t("points")}: {selectedCustomer.points}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <View style={{ flexDirection: "row" }}>
+                  <Button
+                    size="small"
+                    appearance="ghost"
+                    onPress={() => setCustomerModalVisible(true)}
+                  >
+                    {t("change")}
+                  </Button>
+                  <Button
+                    size="small"
+                    appearance="ghost"
+                    status="danger"
+                    accessoryLeft={(props) => (
+                      <Icon {...props} name="close-outline" />
+                    )}
+                    onPress={() => {
+                      // Xóa khách hàng khỏi đơn hàng
+                      setSelectedCustomer(null);
+                      setOrder({
+                        ...order,
+                        customer: "", // Dùng chuỗi rỗng thay vì null
+                        customerName: "", // Dùng chuỗi rỗng thay vì null
+                        customerPhone: "", // Dùng chuỗi rỗng thay vì null
+                      });
+                    }}
+                  >
+                    {t("remove")}
+                  </Button>
+                </View>
+              </View>
+            ) : (
+              <Button
+                style={{ marginTop: 8 }}
+                appearance="outline"
+                status="primary"
+                onPress={() => setCustomerModalVisible(true)}
+                accessoryLeft={(props) => (
+                  <Icon {...props} name="person-add-outline" />
+                )}
+              >
+                {t("select_customer")}
+              </Button>
+            )}
+          </Card>
+
           <Input
             label={t("order_note")}
             style={[styles.input as TextStyle, { padding: 10 }]}
@@ -644,7 +952,6 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
               setOrder({ ...order, note: nextValue })
             }
           />
-
           <Datepicker
             style={[styles.input as ViewStyle, { padding: 10 }]}
             label={t("order_date")}
@@ -691,6 +998,7 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
           {t("payment")}
         </Button>
       </Layout>
+      {renderCustomerModal()}
       <WaitingModal waiting={waiting} />
     </Layout>
   );
@@ -703,7 +1011,6 @@ const styleSheet = StyleService.create({
   },
   cardItem: {
     marginTop: 3,
-    // marginBottom: 3,
   },
   productCard: {
     display: "flex",
@@ -734,8 +1041,6 @@ const styleSheet = StyleService.create({
     borderTopWidth: 0,
     backgroundColor: "white",
     borderRadius: 0,
-    // padding: 10
-    // flex: 1,
   },
   buttons: {
     display: "flex",
@@ -744,6 +1049,64 @@ const styleSheet = StyleService.create({
     bottom: 0,
     padding: 10,
     paddingBottom: 30,
+  },
+  // Các style cho phần khách hàng
+  section: {
+    margin: 10,
+    borderRadius: 8,
+  },
+  sectionHeader: {
+    marginBottom: 12,
+  },
+  customerInfo: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  pointsBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "color-warning-100",
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginTop: 4,
+    alignSelf: "flex-start",
+  },
+  // Style cho modal
+  backdrop: {
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  modalCard: {
+    width: width - 48,
+    borderRadius: 12,
+    padding: 16,
+  },
+  modalTitle: {
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  modalInput: {
+    marginBottom: 12,
+  },
+  customerList: {
+    maxHeight: height * 0.4,
+    marginBottom: 16,
+  },
+  emptyCustomers: {
+    alignItems: "center",
+    padding: 24,
+  },
+  emptyIcon: {
+    width: 60,
+    height: 60,
+    marginBottom: 8,
+  },
+  divider: {
+    marginBottom: 16,
+  },
+  cancelButton: {
+    marginTop: 8,
   },
 });
 
