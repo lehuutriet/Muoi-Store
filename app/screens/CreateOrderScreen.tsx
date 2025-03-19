@@ -99,7 +99,7 @@ const CheckoutButton = (): React.ReactElement => {
       }
       return acc;
     }, 0);
-    console.log("setTotalPrice::", sum, order.order.length);
+
     setTotalPrice(sum);
   }, [order.order]);
 
@@ -180,7 +180,7 @@ const CreateOrderScreen = ({ route, navigation }: CreateOrderScreenProps) => {
       route.params.method === "create"
     ) {
       resetProductList();
-      console.log("CreateOrderScreen called::", route.params);
+
       // reset product list when new order is selected
       resetOrder();
     }

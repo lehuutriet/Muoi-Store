@@ -61,6 +61,8 @@ export const COLLECTION_IDS = {
   warehouse: "warehouse",
   recipes: "recipes",
   customers: "customers",
+  promotions: "promotions",
+  coupons: "coupons",
   // store: 'store'
 };
 interface GraphQLResponse {
@@ -184,7 +186,7 @@ export function useAccounts() {
   const joinTeam = async (
     teamId: string,
     email: string,
-    role: string[], // Giữ nguyên kiểu dữ liệu là string[]
+    role: string[],
     redirectUrl: string
   ) => {
     // Bỏ biến roleArray, sử dụng trực tiếp role
@@ -323,9 +325,15 @@ export function useDatabases() {
     const userPrefs = await getUserPrefs();
     const userId = await getCurrentUserId();
 
-    // Thêm điều kiện lọc theo userId
     let finalQueries = [...queries];
-    if (collectionId !== COLLECTION_IDS.products && userId) {
+    // Thay đổi ở đây để thêm các collection ngoại lệ
+    if (
+      collectionId !== COLLECTION_IDS.products &&
+      collectionId !== COLLECTION_IDS.categories &&
+      collectionId !== COLLECTION_IDS.coupons &&
+      collectionId !== COLLECTION_IDS.promotions &&
+      userId
+    ) {
       finalQueries.push(Query.equal("userId", userId));
     }
 
@@ -335,7 +343,6 @@ export function useDatabases() {
       finalQueries
     );
 
-    // Phần còn lại của code không thay đổi
     if (collectionId === COLLECTION_IDS.products) {
       return await Promise.all(
         items.documents.map(async (item: any) => ({
@@ -542,11 +549,8 @@ export function useStorage() {
     try {
       const userPrefs = await getUserPrefs();
 
-      // Kiểm tra nếu fileID bị cắt ngắn
       let fullFileID = fileID;
       if (fileID.length < 36 && fileID.includes("-")) {
-        console.log("Attempting to fix truncated ID:", fileID);
-        // Thử tìm file trong bucket với ID bắt đầu bằng chuỗi fileID
         try {
           // Nếu có thể, liệt kê tất cả files trong bucket và tìm cái khớp
           const files = await storage.listFiles(userPrefs.BUCKET_ID);
@@ -561,8 +565,6 @@ export function useStorage() {
         }
       }
 
-      // Trường hợp không thể phục hồi ID đầy đủ, tạo URL trực tiếp
-      // Vì bạn đã biết URL đầy đủ từ log
       const directUrl = `${APPWRITE_ENDPOINT}/storage/buckets/${userPrefs.BUCKET_ID}/files/${fullFileID}/view?project=${PROJECT_ID}`;
 
       return directUrl;

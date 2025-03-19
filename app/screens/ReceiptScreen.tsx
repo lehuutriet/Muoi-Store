@@ -71,6 +71,8 @@ interface ReceiptData {
   location?: string;
   subtract: number;
   discount: number;
+  couponCode?: string;
+  couponDiscount?: number;
 }
 const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
   const viewShotRef = useRef(null);
@@ -390,7 +392,54 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
 
           // Gán lại vào receiptData
           receiptData.order = orderItems;
-          console.log("Dữ liệu sản phẩm sau xử lý:", orderItems);
+
+          // Xử lý các trường khác
+          receiptData.subtract =
+            receiptData.subtract >= 0 ? receiptData.subtract : 0;
+          receiptData.discount =
+            receiptData.discount >= 0 ? receiptData.discount : 0;
+
+          // Thêm xử lý coupon
+          receiptData.couponDiscount =
+            receiptData.couponDiscount >= 0 ? receiptData.couponDiscount : 0;
+          receiptData.couponCode = receiptData.couponCode || "";
+
+          setReceiptData(receiptData);
+
+          // Tính toán giá trị
+          try {
+            // Tính tổng giá tiền ban đầu
+            let sum = 0;
+            for (let item of receiptData.order) {
+              sum += (item.price || 0) * (item.count || 1);
+            }
+
+            setTotalPrice(sum);
+
+            // Tính giá trừ giảm giá trực tiếp
+            let finalSum = sum;
+            if (receiptData.subtract > 0) {
+              finalSum = finalSum - receiptData.subtract;
+            }
+
+            // Trừ tiền giảm từ coupon
+            if (receiptData.couponDiscount > 0) {
+              finalSum = finalSum - receiptData.couponDiscount;
+            }
+
+            // Tính giá trừ chiết khấu phần trăm (áp dụng cuối cùng)
+            if (receiptData.discount > 0) {
+              finalSum =
+                finalSum - Math.round((finalSum * receiptData.discount) / 100);
+            }
+
+            // Đảm bảo giá cuối cùng không âm
+            setFinalPrice(Math.max(0, finalSum));
+          } catch (e) {
+            console.error("Lỗi tính toán giá:", e);
+            setTotalPrice(0);
+            setFinalPrice(0);
+          }
         } catch (e) {
           console.error("Lỗi toàn bộ quá trình:", e);
           // Nếu có lỗi, tạo dữ liệu mẫu
@@ -402,35 +451,7 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
               count: 1,
             },
           ];
-        }
-
-        // Xử lý các trường khác
-        receiptData.subtract =
-          receiptData.subtract >= 0 ? receiptData.subtract : 0;
-        receiptData.discount =
-          receiptData.discount >= 0 ? receiptData.discount : 0;
-        setReceiptData(receiptData);
-
-        // Tính toán giá trị
-        try {
-          let sum = 0;
-          for (let item of receiptData.order) {
-            sum += (item.price || 0) * (item.count || 1);
-          }
-          console.log("Tổng giá:", sum);
-          setTotalPrice(sum);
-
-          // Tính giá trừ giảm giá
-          sum = receiptData.subtract > 0 ? sum - receiptData.subtract : sum;
-
-          // Tính giá trừ chiết khấu phần trăm
-          sum =
-            receiptData.discount > 0
-              ? sum - Math.round((sum * receiptData.discount) / 100)
-              : sum;
-          setFinalPrice(sum);
-        } catch (e) {
-          console.error("Lỗi tính toán giá:", e);
+          setReceiptData(receiptData);
           setTotalPrice(0);
           setFinalPrice(0);
         }
@@ -810,6 +831,26 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
                 display: "flex",
                 flexDirection: "row",
                 justifyContent: "space-between",
+                paddingTop: 10,
+              }}
+            >
+              <Text>
+                {data.couponCode
+                  ? `${t("coupon")} (${data.couponCode})`
+                  : t("coupon")}
+              </Text>
+              <Text>
+                {Intl.NumberFormat("en-US", {
+                  style: "currency",
+                  currency: "VND",
+                }).format(data.couponDiscount || 0)}
+              </Text>
+            </View>
+            <View
+              style={{
+                display: "flex",
+                flexDirection: "row",
+                justifyContent: "space-between",
                 paddingTop: 5,
               }}
             >
@@ -823,46 +864,6 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
                       : t("delivery")
                   : t("dine_in")}{" "}
                 {/* Mặc định là tại quán */}
-              </Text>
-            </View>
-            <View
-              style={{
-                display: "flex",
-                flexDirection: "row",
-                justifyContent: "space-between",
-                paddingTop: 10,
-                // width: Dimensions.get("window").width - 32,
-                // alignItems:"center",
-              }}
-            >
-              <Text>{t("subtract")} </Text>
-              <Text>
-                {Intl.NumberFormat("en-US", {
-                  style: "currency",
-                  currency: "VND",
-                }).format(data.subtract ? data.subtract : 0)}
-              </Text>
-            </View>
-            <View
-              style={{
-                display: "flex",
-                flexDirection: "row",
-                justifyContent: "space-between",
-                paddingTop: 10,
-                // width: Dimensions.get("window").width - 32,
-                // alignItems:"center",
-              }}
-            >
-              <Text>{t("discount") + " " + data.discount + "%"}</Text>
-              <Text>
-                {Intl.NumberFormat("en-US", {
-                  style: "currency",
-                  currency: "VND",
-                }).format(
-                  Math.round(
-                    ((totalPrice - data.subtract) * data.discount) / 100
-                  )
-                )}
               </Text>
             </View>
 

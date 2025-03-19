@@ -49,16 +49,13 @@ export const BLEProvider = ({ children }: { children: React.ReactNode }) => {
   // Khởi tạo BleManager trong useEffect
   useEffect(() => {
     let bleManagerInstance: BleManager | null = null;
-    console.log("bleManagerInstance:", bleManagerInstance);
 
     try {
       // Chỉ khởi tạo trong môi trường di động thực
       if (Platform.OS === "android" || Platform.OS === "ios") {
-        console.log("Đang khởi tạo BleManager với phiên bản 3.0.0...");
         bleManagerInstance = new BleManager();
-        console.log("Khởi tạo bleManagerInstance:", bleManagerInstance);
+
         setManager(bleManagerInstance);
-        console.log("Khởi tạo BleManager thành công");
       } else {
         console.log("Không khởi tạo BleManager (không phải thiết bị di động)");
       }

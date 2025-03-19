@@ -26,22 +26,42 @@ export interface CurrentOrderType {
   customer: string;
   customerName: string;
   customerPhone: string;
+  couponCode?: string;
+  couponDiscount?: number;
 }
 
-export const currentOrderAtom = atom<CurrentOrderType>({
+export const currentOrderAtom = atom<{
+  $id: string;
+  note: string;
+  table: string;
+  location?: string;
+  discount: number;
+  subtract: number;
+  total: number;
+  date: Date;
+  order: OrderItem[];
+  couponCode?: string;
+  couponDiscount?: number;
+  customer?: string;
+  customerName?: string;
+  customerPhone?: string;
+}>({
   key: "currentOrder",
   default: {
     $id: "",
     note: "",
     table: "",
+    location: "dine-in",
     discount: 0,
     subtract: 0,
     total: 0,
     date: new Date(),
     order: [],
-    customer: "",
-    customerName: "",
-    customerPhone: "",
+    couponCode: undefined,
+    couponDiscount: 0,
+    customer: undefined,
+    customerName: undefined,
+    customerPhone: undefined,
   },
 });
 

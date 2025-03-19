@@ -44,6 +44,8 @@ import EditRecipeScreen from "../screens/EditRecipeScreen";
 import LoyalCustomerScreen from "../screens/LoyalCustomerScreen";
 import AddCustomerScreen from "../screens/AddCustomerScreen";
 import EditCustomerScreen from "../screens/EditCustomerScreen";
+import CouponScreen from "../screens/CouponScreen";
+import PromotionScreen from "../screens/PromotionScreen";
 // Định nghĩa các tham số cho navigation
 type RootStackParamList = {
   TabNavigator: undefined;
@@ -70,6 +72,8 @@ type RootStackParamList = {
   LoyalCustomerScreen: undefined;
   AddCustomerScreen: undefined;
   EditCustomerScreen: undefined;
+  CouponScreen: undefined;
+  PromotionScreen: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -144,7 +148,6 @@ const StackScreen: React.FC<StackScreenProps> = ({
       >
         {(props) => <TabNavigator {...props} onLoggedOut={onLoggedOut} />}
       </Stack.Screen>
-
       <Stack.Screen
         name="CreateProductScreen"
         component={CreateProductScreen}
@@ -152,7 +155,6 @@ const StackScreen: React.FC<StackScreenProps> = ({
           title: t("create_product"),
         }}
       />
-
       <Stack.Screen
         name="ManageProductScreen"
         component={ManageProductScreen}
@@ -285,7 +287,6 @@ const StackScreen: React.FC<StackScreenProps> = ({
           headerTitleAlign: "center",
         }}
       />
-
       <Stack.Screen
         name="AddCustomerScreen"
         component={AddCustomerScreen}
@@ -299,6 +300,17 @@ const StackScreen: React.FC<StackScreenProps> = ({
         options={{
           headerShown: false,
         }}
+      />
+
+      <Stack.Screen
+        name="CouponScreen"
+        component={CouponScreen}
+        options={{ title: t("coupons_promotions") }}
+      />
+      <Stack.Screen
+        name="PromotionScreen"
+        component={PromotionScreen}
+        options={{ title: t("promotions") }}
       />
     </Stack.Navigator>
   );
