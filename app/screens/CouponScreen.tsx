@@ -74,7 +74,7 @@ const CouponScreen = ({}) => {
   const [couponType, setCouponType] = useState<IndexPath>(new IndexPath(0));
   const [couponValue, setCouponValue] = useState("");
   const [minOrderValue, setMinOrderValue] = useState("");
-  const [maxDiscount, setMaxDiscount] = useState("");
+
   const [startDate, setStartDate] = useState<Date>(new Date());
   const [endDate, setEndDate] = useState<Date>(
     new Date(new Date().setMonth(new Date().getMonth() + 1))
@@ -91,13 +91,102 @@ const CouponScreen = ({}) => {
       const couponsData = await getAllItem(COLLECTION_IDS.coupons);
       setCoupons(couponsData);
       setFilteredCoupons(couponsData);
+
+      // Kiểm tra và vô hiệu hóa mã hết hạn
+      const currentDate = new Date();
+      const expiredCoupons = couponsData.filter(
+        (coupon) => coupon.isActive && new Date(coupon.endDate) < currentDate
+      );
+
+      if (expiredCoupons.length > 0) {
+        console.log(
+          `Tìm thấy ${expiredCoupons.length} mã giảm giá đã hết hạn, đang vô hiệu hóa...`
+        );
+
+        // Cập nhật từng mã hết hạn trong database
+        let updated = false;
+        for (const coupon of expiredCoupons) {
+          await updateItem(COLLECTION_IDS.coupons, coupon.$id, {
+            isActive: false,
+          });
+          updated = true;
+          console.log(`Đã vô hiệu hóa mã ${coupon.code}`);
+        }
+
+        // Nếu có cập nhật, fetch lại dữ liệu
+        if (updated) {
+          const updatedData = await getAllItem(COLLECTION_IDS.coupons);
+          setCoupons(updatedData);
+          setFilteredCoupons(updatedData);
+
+          // Thông báo cho người dùng
+          Alert.alert(
+            t("expired_coupons_found"),
+            t("expired_coupons_disabled").replace(
+              "{count}",
+              expiredCoupons.length.toString()
+            )
+          );
+        }
+      }
     } catch (error) {
       console.error("Error fetching coupons:", error);
     } finally {
       setRefreshing(false);
     }
-  }, [getAllItem]);
+  }, [getAllItem, updateItem]);
+  // Thêm hàm này vào CouponScreen
+  const checkAndDisableExpiredCoupons = async () => {
+    try {
+      const currentDate = new Date();
+      const expiredCoupons = coupons.filter(
+        (coupon) => coupon.isActive && new Date(coupon.endDate) < currentDate
+      );
 
+      if (expiredCoupons.length > 0) {
+        await fetchCoupons();
+        console.log(
+          `Tìm thấy ${expiredCoupons.length} mã giảm giá đã hết hạn, đang vô hiệu hóa...`
+        );
+
+        // Cập nhật từng mã hết hạn trong database
+        for (const coupon of expiredCoupons) {
+          await updateItem(COLLECTION_IDS.coupons, coupon.$id, {
+            isActive: false,
+          });
+          console.log(`Đã vô hiệu hóa mã ${coupon.code}`);
+        }
+
+        // Refresh lại danh sách coupon
+        fetchCoupons();
+
+        // Thông báo cho người dùng
+        if (expiredCoupons.length > 0) {
+          Alert.alert(
+            t("expired_coupons_found"),
+            t("expired_coupons_disabled").replace(
+              "{count}",
+              expiredCoupons.length.toString()
+            )
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Lỗi khi vô hiệu hóa mã giảm giá hết hạn:", error);
+    }
+  };
+  useEffect(() => {
+    // Kiểm tra khi component mount
+    checkAndDisableExpiredCoupons();
+
+    // Thiết lập timer để kiểm tra mỗi giờ
+    const timer = setInterval(() => {
+      checkAndDisableExpiredCoupons();
+    }, 3600000); // 1 giờ = 3600000 ms
+
+    // Cleanup khi component unmount
+    return () => clearInterval(timer);
+  }, []);
   // Lọc coupons theo từ khóa tìm kiếm
   useEffect(() => {
     if (searchText) {
@@ -112,10 +201,14 @@ const CouponScreen = ({}) => {
       setFilteredCoupons(coupons);
     }
   }, [searchText, coupons]);
-
   useFocusEffect(
     React.useCallback(() => {
-      fetchCoupons();
+      const loadData = async () => {
+        await fetchCoupons();
+        await checkAndDisableExpiredCoupons();
+      };
+
+      loadData();
       return () => {};
     }, [])
   );
@@ -125,7 +218,7 @@ const CouponScreen = ({}) => {
     setCouponType(new IndexPath(0));
     setCouponValue("");
     setMinOrderValue("");
-    setMaxDiscount("");
+
     setStartDate(new Date());
     setEndDate(new Date(new Date().setMonth(new Date().getMonth() + 1)));
     setUsageLimit("1");
@@ -146,7 +239,7 @@ const CouponScreen = ({}) => {
     setCouponType(new IndexPath(coupon.type === "percentage" ? 0 : 1));
     setCouponValue(coupon.value.toString());
     setMinOrderValue(coupon.minOrderValue.toString());
-    setMaxDiscount(coupon.maxDiscount?.toString() || "");
+
     setStartDate(new Date(coupon.startDate));
     setEndDate(new Date(coupon.endDate));
     setUsageLimit(coupon.usageLimit.toString());
@@ -203,7 +296,7 @@ const CouponScreen = ({}) => {
         type: couponType.row === 0 ? "percentage" : "fixed",
         value: Number(couponValue),
         minOrderValue: Number(minOrderValue) || 0,
-        maxDiscount: maxDiscount ? Number(maxDiscount) : undefined,
+
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
         usageLimit: Number(usageLimit) || 1,
@@ -282,12 +375,7 @@ const CouponScreen = ({}) => {
             {t("min_order")}:{" "}
             {Intl.NumberFormat("vi-VN").format(item.minOrderValue)} đ
           </Text>
-          {item.maxDiscount && (
-            <Text category="s2">
-              {t("max_discount")}:{" "}
-              {Intl.NumberFormat("vi-VN").format(item.maxDiscount)} đ
-            </Text>
-          )}
+
           <Text category="c1" appearance="hint">
             {t("valid_until")}: {new Date(item.endDate).toLocaleDateString()}
           </Text>
@@ -361,19 +449,6 @@ const CouponScreen = ({}) => {
             keyboardType="numeric"
             style={styles.input as TextStyle}
           />
-
-          {couponType.row === 0 && (
-            <Input
-              label={t("max_discount")}
-              {...useMaskedInputProps({
-                value: maxDiscount,
-                onChangeText: (masked, unmasked) => setMaxDiscount(unmasked),
-                mask: vndMask,
-              })}
-              keyboardType="numeric"
-              style={styles.input as TextStyle}
-            />
-          )}
 
           <Text category="label" style={styles.dateLabel as TextStyle}>
             {t("valid_period")}

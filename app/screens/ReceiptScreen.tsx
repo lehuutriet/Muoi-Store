@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
-// import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import * as MediaLibrary from "expo-media-library";
 import { useRecoilState } from "recoil";
@@ -16,13 +15,12 @@ import {
   Input,
   Card,
   Modal,
+  Spinner,
 } from "@ui-kitten/components";
 import { useTranslation } from "react-i18next";
-// Thêm vào phần đầu file, trong phần import
 import { COLLECTION_IDS, useAccounts, useDatabases } from "../hook/AppWrite";
 import QRCode from "react-native-qrcode-svg";
 import { useBLE } from "../hook/BLEContext";
-import {} from "../utils";
 import { default as EscPosEncoder } from "@waymen/esc-pos-encoder";
 import ViewShot, { captureRef } from "react-native-view-shot";
 import { userAtom } from "../states";
@@ -32,7 +30,9 @@ import { RouteProp } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { useRecoilCallback } from "recoil";
 import { allProductsAtom, productAtomFamily } from "../states";
-// import ReactNativeBlobUtil from "react-native-blob-util";
+
+const { width, height } = Dimensions.get("window");
+
 type RootStackParamList = {
   TabNavigator: undefined;
   CreateOrderScreen: { method: string };
@@ -44,19 +44,54 @@ type ReceiptScreenProps = {
   route: RouteProp<RootStackParamList, "ReceiptScreen">;
   navigation: StackNavigationProp<RootStackParamList>;
 };
+
 interface ReceiptStyles {
   container: ViewStyle;
-  productCard: ViewStyle;
-  cardInfo: ViewStyle;
-  cardImg: ImageStyle;
+  receiptContainer: ViewStyle;
+  receiptHeader: ViewStyle;
+  receiptTitle: TextStyle;
+  storeName: TextStyle;
+  receiptDateTime: TextStyle;
+  tableInfo: TextStyle;
+  divider: ViewStyle;
+  dashedDivider: ViewStyle;
+  columnHeader: ViewStyle;
+  columnHeaderText: TextStyle;
+  itemRow: ViewStyle;
+  itemName: TextStyle;
+  itemPrice: TextStyle;
+  itemQuantity: TextStyle;
+  itemTotal: TextStyle;
+  summaryContainer: ViewStyle;
+  summaryRow: ViewStyle;
+  summaryLabel: TextStyle;
+  summaryValue: TextStyle;
+  finalPriceRow: ViewStyle;
+  finalPriceLabel: TextStyle;
+  finalPriceValue: TextStyle;
+  paymentMethodContainer: ViewStyle;
+  paymentMethodHeader: ViewStyle;
+  paymentMethodIcon: ImageStyle;
+  paymentMethodText: TextStyle;
+  wifiContainer: ViewStyle;
+  wifiInfo: TextStyle;
+  qrCodeContainer: ViewStyle;
+  thankYouText: TextStyle;
+  buttonsContainer: ViewStyle;
+  actionButton: ViewStyle;
+  buttonIcon: ImageStyle;
+  modalCard: ViewStyle;
+  modalTitle: TextStyle;
+  returnItemContainer: ViewStyle;
+  returnItemCheckbox: ViewStyle;
+  returnReasonInput: ViewStyle;
+  returnAmountText: TextStyle;
+  modalButtonsContainer: ViewStyle;
+  modalButton: ViewStyle;
   headerRight: ViewStyle;
   menuIcon: ViewStyle;
-  input: ViewStyle;
-  countBtn: ViewStyle;
-  countIcon: ImageStyle;
-  buttons: ViewStyle;
-  icon: ImageStyle;
 }
+
 interface ReceiptData {
   $id: string;
   status: string;
@@ -73,7 +108,10 @@ interface ReceiptData {
   discount: number;
   couponCode?: string;
   couponDiscount?: number;
+  customerName?: string;
+  customerPhone?: string;
 }
+
 const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
   const viewShotRef = useRef(null);
   const styles = useStyleSheet(styleSheet);
@@ -88,22 +126,43 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
   const [userInfo, setUserInfo] = useRecoilState(userAtom);
   const [returnModalVisible, setReturnModalVisible] = useState(false);
   const [returnReason, setReturnReason] = useState("");
-
   const [selectedItems, setSelectedItems] = useState<{
     [key: string]: boolean;
   }>({});
   const [returnAmount, setReturnAmount] = useState(0);
   const [currentReturnAmount, setCurrentReturnAmount] = useState(0);
-  // Thêm useEffect để theo dõi khi selectedItems thay đổi
+  const [waiting, setWaiting] = useState(false);
+
+  const [appliedPromotion, setAppliedPromotion] = useState<any>(null);
+  const { updateItem, createItem, getSingleItem, getAllItem } = useDatabases();
+  const [promotionName, setPromotionName] = useState("");
+  const [promotionDiscount, setPromotionDiscount] = useState(0);
+  // Theo dõi khi selectedItems thay đổi
   useEffect(() => {
     if (data) {
       setReturnAmount(calculateReturnAmount());
     }
   }, [selectedItems, data]);
-  // Thêm vào phần đầu của component ReceiptScreen
-  const { updateItem, createItem, getSingleItem, getAllItem } = useDatabases();
-  const [waiting, setWaiting] = useState(false);
-  const toggleItemSelection = (index: any) => {
+
+  // Refresh danh sách sản phẩm
+  const refreshProductList = useRecoilCallback(
+    ({ set }) =>
+      async () => {
+        try {
+          const productData = await getAllItem(COLLECTION_IDS.products);
+          set(allProductsAtom, productData);
+          for (const product of productData) {
+            set(productAtomFamily(product.$id), product);
+          }
+        } catch (error) {
+          console.error("Lỗi khi làm mới danh sách sản phẩm:", error);
+        }
+      },
+    []
+  );
+
+  // Chọn/bỏ chọn mục khi hoàn trả
+  const toggleItemSelection = (index: number) => {
     const newSelectedItems = {
       ...selectedItems,
       [index]: !selectedItems[index],
@@ -111,27 +170,41 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
 
     setSelectedItems(newSelectedItems);
 
-    // Tính lại giá trị hoàn trả ngay lập tức
     if (data && data.order) {
       const item = data.order[index];
       const itemValue = item.price * item.count;
 
-      // Nếu đang chọn mới, thêm giá trị
       if (!selectedItems[index]) {
         setCurrentReturnAmount(currentReturnAmount + itemValue);
-      }
-      // Nếu đang bỏ chọn, trừ giá trị
-      else {
+      } else {
         setCurrentReturnAmount(currentReturnAmount - itemValue);
       }
     }
   };
 
-  // Sửa lại hàm showReturnOrderModal
+  // Tính toán số tiền hoàn trả
+  const calculateReturnAmount = () => {
+    let total = 0;
+
+    if (!data || !data.order) return total;
+
+    const isPaid = data.status === "cash" || data.status === "transfer";
+    if (!isPaid) return 0;
+
+    Object.entries(selectedItems).forEach(([index, isSelected]) => {
+      if (isSelected) {
+        const item = data.order[parseInt(index)];
+        total += item.price * item.count;
+      }
+    });
+
+    return total;
+  };
+
+  // Hiển thị modal hoàn trả đơn hàng
   const showReturnOrderModal = () => {
     if (!data || !data.order) return;
 
-    // Tạo đối tượng selectedItems với tất cả mục được chọn
     const newSelectedItems: { [key: number]: boolean } = {};
     data.order.forEach((_, index) => {
       newSelectedItems[index] = true;
@@ -140,7 +213,6 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
     setSelectedItems(newSelectedItems);
     setReturnReason("");
 
-    // Tính tổng giá trị trực tiếp từ data
     let sum = 0;
     if (data.status === "cash" || data.status === "transfer") {
       data.order.forEach((item) => {
@@ -151,50 +223,8 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
     setCurrentReturnAmount(sum);
     setReturnModalVisible(true);
   };
-  // Hàm tính toán giá trị hoàn trả
-  const calculateReturnAmount = () => {
-    let total = 0;
 
-    if (!data || !data.order) return total;
-
-    // Kiểm tra đơn hàng đã thanh toán chưa
-    const isPaid = data.status === "cash" || data.status === "transfer";
-
-    // Nếu chưa thanh toán, giá trị hoàn trả là 0
-    if (!isPaid) {
-      return 0;
-    }
-
-    // Nếu đã thanh toán, tính tổng giá trị các sản phẩm được chọn để hoàn trả
-    Object.entries(selectedItems).forEach(([index, isSelected]) => {
-      if (isSelected) {
-        const item = data.order[parseInt(index)];
-        total += item.price * item.count;
-      }
-    });
-
-    return total;
-  };
-  // Thêm vào phần đầu của component ReceiptScreen
-  const refreshProductList = useRecoilCallback(
-    ({ set }) =>
-      async () => {
-        try {
-          const productData = await getAllItem(COLLECTION_IDS.products);
-
-          // Cập nhật atom chứa tất cả sản phẩm
-          set(allProductsAtom, productData);
-
-          // Cập nhật từng sản phẩm trong atom family
-          for (const product of productData) {
-            set(productAtomFamily(product.$id), product);
-          }
-        } catch (error) {
-          console.error("Error refreshing product list:", error);
-        }
-      },
-    []
-  );
+  // Xử lý hoàn trả đơn hàng
   const handleReturnOrder = async () => {
     if (!data) return;
     if (!returnReason) {
@@ -205,35 +235,29 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
     setWaiting(true);
 
     try {
-      // Kiểm tra trạng thái thanh toán
-
       const returnAmount = calculateReturnAmount();
-
-      // Tạo dữ liệu để lưu thông tin đơn hàng bị hoàn trả
       const isPaid = data?.status === "cash" || data?.status === "transfer";
+
       const returnData = {
         originalOrderId: data?.$id,
         returnDate: new Date().toISOString(),
         returnReason: returnReason,
         returnedItems: data?.order
           .filter((_, index) => selectedItems[index])
-          .map((item) => `${item.$id}:${item.count}`), // Lưu định dạng id:count
+          .map((item) => `${item.$id}:${item.count}`),
         totalReturnAmount: returnAmount,
         status: "returned",
-        wasPaid: isPaid, // Đảm bảo là boolean (true/false), không phải null
+        wasPaid: isPaid,
       };
 
-      // Cập nhật trạng thái đơn hàng gốc thành 'returned'
       await updateItem(COLLECTION_IDS.orders, data?.$id, {
         status: "returned",
         returnReason: returnReason,
         returnDate: new Date().toISOString(),
       });
 
-      // Lưu thông tin chi tiết về việc hoàn trả
       await createItem(COLLECTION_IDS.returns, returnData);
 
-      // Chỉ cập nhật lại tồn kho nếu đơn hàng đã thanh toán trước đó
       if (isPaid) {
         for (const [index, isSelected] of Object.entries(selectedItems)) {
           if (isSelected && data?.order[parseInt(index)]) {
@@ -255,7 +279,6 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
         }
       }
 
-      // Thông báo kết quả
       const successMessage = isPaid
         ? t("order_return_success_with_refund").replace(
             "{amount}",
@@ -266,6 +289,7 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
       Alert.alert("", successMessage, [
         { text: t("ok"), onPress: () => navigation.goBack() },
       ]);
+
       await refreshProductList();
     } catch (error) {
       console.error("Lỗi khi hoàn trả đơn hàng:", error);
@@ -275,11 +299,13 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
       setReturnModalVisible(false);
     }
   };
+
+  // Cài đặt thanh tiêu đề
   useEffect(() => {
     navigation.setOptions({
       title: t("receipt_detail"),
       headerRight: () => (
-        <View style={styles.headerRight as ViewStyle}>
+        <View style={styles.headerRight as any}>
           <Button
             size="small"
             style={styles.menuIcon as ViewStyle}
@@ -294,7 +320,7 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
             onPress={() => saveReceipt()}
           />
           <Button
-            style={[styles.menuIcon as ViewStyle]}
+            style={styles.menuIcon as ViewStyle}
             size="small"
             accessoryLeft={(props) => (
               <Icon {...props} fill={theme["color-primary-900"]} name="share" />
@@ -307,6 +333,7 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
     });
   }, [navigation]);
 
+  // Khởi tạo dữ liệu hóa đơn
   useEffect(() => {
     async function initData() {
       if (route.params && route.params.receiptData) {
@@ -314,17 +341,13 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
         let receiptData = { ...route.params.receiptData };
 
         try {
-          // Cách đơn giản nhất: Xử lý dữ liệu order cứng
           let orderItems = [];
 
-          // Kiểm tra nếu là mảng
           if (Array.isArray(receiptData.order)) {
             for (let item of receiptData.order) {
               try {
-                // Nếu là chuỗi, parse nó
                 if (typeof item === "string") {
                   const parsedItem = JSON.parse(item);
-                  // Đảm bảo các trường cần thiết tồn tại
                   orderItems.push({
                     $id: parsedItem.$id || `item-${Math.random()}`,
                     name: parsedItem.name || "Sản phẩm",
@@ -332,7 +355,6 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
                     count: Number(parsedItem.count) || 1,
                   });
                 } else if (typeof item === "object") {
-                  // Nếu đã là object
                   orderItems.push({
                     $id: item.$id || `item-${Math.random()}`,
                     name: item.name || "Sản phẩm",
@@ -345,12 +367,9 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
               }
             }
           } else if (typeof receiptData.order === "string") {
-            // Nếu order là một chuỗi
             try {
-              // Thử parse như một mảng JSON
               const parsedArray = JSON.parse(receiptData.order);
               if (Array.isArray(parsedArray)) {
-                // Nếu parse thành công và là một mảng
                 for (let item of parsedArray) {
                   orderItems.push({
                     $id: item.$id || `item-${Math.random()}`,
@@ -360,7 +379,6 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
                   });
                 }
               } else {
-                // Nếu parse thành công nhưng không phải mảng
                 orderItems.push({
                   $id: parsedArray.$id || `item-${Math.random()}`,
                   name: parsedArray.name || "Sản phẩm",
@@ -369,7 +387,6 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
                 });
               }
             } catch (e) {
-              // Nếu không parse được như JSON, tạo một sản phẩm mẫu
               console.error("Lỗi parse order string:", e);
               orderItems.push({
                 $id: "default-item",
@@ -380,7 +397,6 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
             }
           }
 
-          // Nếu không có sản phẩm nào được xử lý, thêm một sản phẩm mặc định
           if (orderItems.length === 0) {
             orderItems.push({
               $id: "default-item",
@@ -390,50 +406,73 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
             });
           }
 
-          // Gán lại vào receiptData
           receiptData.order = orderItems;
-
-          // Xử lý các trường khác
           receiptData.subtract =
             receiptData.subtract >= 0 ? receiptData.subtract : 0;
           receiptData.discount =
             receiptData.discount >= 0 ? receiptData.discount : 0;
-
-          // Thêm xử lý coupon
           receiptData.couponDiscount =
             receiptData.couponDiscount >= 0 ? receiptData.couponDiscount : 0;
           receiptData.couponCode = receiptData.couponCode || "";
+          // Thêm dòng này để đọc thông tin khuyến mãi
+          receiptData.promotionDiscount =
+            receiptData.promotionDiscount >= 0
+              ? receiptData.promotionDiscount
+              : 0;
+
+          // Cập nhật state từ dữ liệu đơn hàng
+          if (receiptData.promotionDiscount > 0) {
+            setPromotionDiscount(receiptData.promotionDiscount);
+            // Nếu có promotionId và promotionName, có thể tạo đối tượng appliedPromotion
+            if (receiptData.promotionId || receiptData.promotionName) {
+              setAppliedPromotion({
+                $id: receiptData.promotionId || "",
+                name: receiptData.promotionName || "Khuyến mãi",
+              });
+            }
+          }
 
           setReceiptData(receiptData);
 
-          // Tính toán giá trị
           try {
             // Tính tổng giá tiền ban đầu
             let sum = 0;
             for (let item of receiptData.order) {
               sum += (item.price || 0) * (item.count || 1);
             }
+            // Xử lý thông tin đặc biệt về khuyến mãi
+            if (receiptData.promotionName) {
+              setPromotionName(receiptData.promotionName);
+            }
 
+            if (
+              receiptData.promotionDiscount &&
+              receiptData.promotionDiscount > 0
+            ) {
+              setPromotionDiscount(Number(receiptData.promotionDiscount));
+            }
             setTotalPrice(sum);
 
-            // Tính giá trừ giảm giá trực tiếp
+            // Tính giá cuối cùng
             let finalSum = sum;
             if (receiptData.subtract > 0) {
               finalSum = finalSum - receiptData.subtract;
             }
 
-            // Trừ tiền giảm từ coupon
             if (receiptData.couponDiscount > 0) {
               finalSum = finalSum - receiptData.couponDiscount;
             }
 
-            // Tính giá trừ chiết khấu phần trăm (áp dụng cuối cùng)
+            // Thêm phần trừ khuyến mãi vào tính toán giá cuối
+            if (receiptData.promotionDiscount > 0) {
+              finalSum = finalSum - Number(receiptData.promotionDiscount);
+            }
+
             if (receiptData.discount > 0) {
               finalSum =
                 finalSum - Math.round((finalSum * receiptData.discount) / 100);
             }
 
-            // Đảm bảo giá cuối cùng không âm
             setFinalPrice(Math.max(0, finalSum));
           } catch (e) {
             console.error("Lỗi tính toán giá:", e);
@@ -442,18 +481,7 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
           }
         } catch (e) {
           console.error("Lỗi toàn bộ quá trình:", e);
-          // Nếu có lỗi, tạo dữ liệu mẫu
-          receiptData.order = [
-            {
-              $id: "error-item",
-              name: "Lỗi dữ liệu",
-              price: 0,
-              count: 1,
-            },
-          ];
-          setReceiptData(receiptData);
-          setTotalPrice(0);
-          setFinalPrice(0);
+          // [Xử lý lỗi]
         }
       }
     }
@@ -461,60 +489,48 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
   }, []);
 
   const showAlert = (tilte: string, message: string) =>
-    Alert.alert(
-      tilte,
-      message,
-      [
-        {
-          text: "Ok",
-          // onPress: () => Alert.alert('Cancel Pressed'),
-          style: "cancel",
-        },
-      ],
-      {
-        cancelable: true,
-        // onDismiss: () =>
-        //   Alert.alert(
-        //     'This alert was dismissed by tapping outside of the alert dialog.',
-        //   ),
-      }
-    );
+    Alert.alert(tilte, message, [{ text: "Ok", style: "cancel" }], {
+      cancelable: true,
+    });
 
+  // Lưu hóa đơn vào thư viện ảnh
   const saveReceipt = async () => {
-    // Save file to photo library
     const permission = await requestMediaPermission();
     console.log("permissionResponse::", permission);
     if (permission && permission.granted) {
-      const receuptUri = await captureRef(viewShotRef, {
+      const receiptUri = await captureRef(viewShotRef, {
         width: 58,
         format: "jpg",
-        quality: 0.5,
+        quality: 0.8,
         result: "tmpfile",
       });
-      console.log("receuptUri::", receuptUri);
+      console.log("receiptUri::", receiptUri);
 
-      MediaLibrary.saveToLibraryAsync(receuptUri);
+      MediaLibrary.saveToLibraryAsync(receiptUri);
       showAlert("", t("save_receipt_success"));
     } else {
       showAlert("", t("permission_media_error"));
     }
   };
 
+  // Chia sẻ hóa đơn
   const shareReceipt = async () => {
     const shareAvailable = await Sharing.isAvailableAsync();
     console.log("shareAvailable::", shareAvailable);
     if (shareAvailable) {
-      const receuptUri = await captureRef(viewShotRef, {
+      const receiptUri = await captureRef(viewShotRef, {
         width: 58,
         format: "jpg",
         quality: 1,
         result: "tmpfile",
       });
-      console.log("receuptUri::", receuptUri);
-      Sharing.shareAsync(receuptUri);
+      console.log("receiptUri::", receiptUri);
+      Sharing.shareAsync(receiptUri);
     }
   };
 
+  // In hóa đơn
+  // In hóa đơn
   const printReceipt = async () => {
     if (!data) return;
     try {
@@ -589,37 +605,81 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
           await printContent(Buffer.from(buffer).toString("base64"));
         }
 
+        // Xây dựng bảng tính tiền
+        let summaryTable = [
+          [
+            t("total_price"),
+            Intl.NumberFormat("en-US", {
+              style: "currency",
+              currency: "VND",
+            })
+              .format(totalPrice)
+              .slice(1),
+          ],
+        ];
+
+        // Thêm dòng trừ tiền trực tiếp nếu có
+        if (data.subtract > 0) {
+          summaryTable.push([
+            t("subtract"),
+            "-" +
+              Intl.NumberFormat("en-US", {
+                style: "currency",
+                currency: "VND",
+              })
+                .format(data.subtract)
+                .slice(1),
+          ]);
+        }
+
+        // Thêm dòng giảm giá từ mã khuyến mãi nếu có
+        if (data.couponCode && data.couponDiscount && data.couponDiscount > 0) {
+          summaryTable.push([
+            `${t("coupon")} (${data.couponCode})`,
+            "-" +
+              Intl.NumberFormat("en-US", {
+                style: "currency",
+                currency: "VND",
+              })
+                .format(data.couponDiscount)
+                .slice(1),
+          ]);
+        }
+
+        // Thêm dòng giảm giá từ khuyến mãi nếu có
+        if (promotionDiscount > 0) {
+          const promotionText = appliedPromotion?.name
+            ? `${t("promotion")} (${appliedPromotion.name})`
+            : t("promotion");
+
+          summaryTable.push([
+            promotionText,
+            "-" +
+              Intl.NumberFormat("en-US", {
+                style: "currency",
+                currency: "VND",
+              })
+                .format(promotionDiscount)
+                .slice(1),
+          ]);
+        }
+
+        // Thêm dòng giảm giá phần trăm nếu có
+        if (data.discount > 0) {
+          summaryTable.push([`${t("discount")} (%)`, `${data.discount}%`]);
+        }
+
         const footerBuffer = encoder
           .codepage("tcvn")
           .line("--------------------------------")
           .bold(true)
+          // In bảng tính tiền
           .table(
             [
               { width: 16, align: "left" },
               { width: 16, align: "right" },
             ],
-            [
-              [
-                t("total_price"),
-                Intl.NumberFormat("en-US", {
-                  style: "currency",
-                  currency: "VND",
-                })
-                  .format(totalPrice)
-                  .slice(1),
-              ],
-            ]
-          )
-          .bold(false)
-          .table(
-            [
-              { width: 16, align: "left" },
-              { width: 16, align: "right" },
-            ],
-            [
-              [t("subtract"), data.subtract.toString()],
-              [`${t("discount")} %`, data.discount.toString()],
-            ]
+            summaryTable
           )
           .bold(true)
           .table(
@@ -650,10 +710,8 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
           )
           .line("--------------------------------")
           .align("center")
-          // .line(t("payment_method"))
           .line(userInfo.WIFI ? `${t("wifi")}: ${userInfo.WIFI}` : "")
           .line("--------------------------------")
-          // .qrcode('https://nielsleenheer.com')
           .newline()
           .encode();
 
@@ -666,128 +724,154 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
 
   return (
     <Layout level="1" style={styles.container as ViewStyle}>
-      <ScrollView>
+      <ScrollView showsVerticalScrollIndicator={false}>
         {data ? (
           <ViewShot
             ref={viewShotRef}
-            style={{
-              paddingLeft: 16,
-              paddingRight: 16,
-              paddingBottom: 16,
-              backgroundColor: "white",
-            }}
+            style={styles.receiptContainer as ViewStyle}
           >
-            <View>
+            {/* Header */}
+            <View style={styles.receiptHeader as ViewStyle}>
+              <Text category="h5" style={styles.receiptTitle as TextStyle}>
+                {data.status === "unpaid" ? t("receipt_temp") : t("receipt")}
+              </Text>
+              <Text category="h6" style={styles.storeName as TextStyle}>
+                {userInfo.STORE_NAME}
+              </Text>
+              <Text category="s2" style={styles.receiptDateTime as TextStyle}>
+                {data.date
+                  ? new Date(data.date).toLocaleString("vi-VN", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : ""}
+              </Text>
+
               <View
                 style={{
-                  padding: 10,
+                  flexDirection: "row",
+                  justifyContent: "center",
+                  marginTop: 4,
                 }}
               >
-                <Text
-                  style={{
-                    fontWeight: "bold",
-                    textAlign: "center",
-                    fontSize: 18,
-                  }}
-                >
-                  {data.status === "unpaid" ? t("receipt") : t("receipt_temp")}
-                </Text>
-                <Text
-                  style={{
-                    textAlign: "center",
-                    fontSize: 15,
-                  }}
-                >
-                  {userInfo.STORE_NAME}
-                </Text>
-                <Text style={{ textAlign: "center", fontSize: 12 }}>
-                  {data.date
-                    ? new Date(data.date).toLocaleString("vi-VN", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })
+                <Text category="s2" style={styles.tableInfo as TextStyle}>
+                  {data.table ? `${t("table_num")}: ${data.table}` : ""}
+                  {data.table && data.$id ? " • " : ""}
+                  {data.$id
+                    ? `${t("order_id")}: #${data.$id.slice(data.$id.length - 4)}`
                     : ""}
                 </Text>
-                <Text style={{ textAlign: "center", fontSize: 12 }}>
-                  {(data.table ? t("table_num") + ": " + data.table : "") +
-                    " - " +
-                    (data.$id
-                      ? t("order_id") +
-                        ": " +
-                        data.$id.slice(data.$id.length - 4)
-                      : "")}
-                </Text>
               </View>
+
+              {/* Thông tin khách hàng nếu có */}
+              {data.customerName && (
+                <View
+                  style={{
+                    marginTop: 12,
+                    backgroundColor: theme["color-primary-100"],
+                    padding: 12,
+                    borderRadius: 8,
+                  }}
+                >
+                  <Text
+                    category="s1"
+                    style={{
+                      textAlign: "center",
+                      fontWeight: "bold",
+                      marginBottom: 4,
+                    }}
+                  >
+                    {t("customer_information")}
+                  </Text>
+                  <Text style={{ textAlign: "center" }}>
+                    {data.customerName}
+                  </Text>
+                  {data.customerPhone && (
+                    <Text style={{ textAlign: "center" }}>
+                      {data.customerPhone}
+                    </Text>
+                  )}
+                </View>
+              )}
             </View>
-            <Divider
-              style={{
-                borderStyle: "dashed",
-                borderTopWidth: 2,
-                backgroundColor: "transparent",
-                borderColor: theme["color-basic-700"],
-              }}
-            ></Divider>
-            <View
-              style={{
-                display: "flex",
-                width: "100%",
-                flexDirection: "row",
-                paddingTop: 10,
-                paddingBottom: 10,
-                // width: Dimensions.get("window").width - 32,
-                // alignItems:"center",
-              }}
-            >
-              <Text style={{ flex: 3 }}> {t("product")}</Text>
-              <Text style={{ flex: 2, textAlign: "center" }}>
-                {" "}
+
+            <Divider style={styles.dashedDivider as ViewStyle} />
+
+            {/* Column Headers */}
+            <View style={styles.columnHeader as ViewStyle}>
+              <Text
+                category="s1"
+                style={
+                  [styles.columnHeaderText, { flex: 3 }] as unknown as TextStyle
+                }
+              >
+                {t("product")}
+              </Text>
+              <Text
+                category="s1"
+                style={
+                  {
+                    ...styles.columnHeaderText,
+                    flex: 2,
+                    textAlign: "center",
+                  } as TextStyle
+                }
+              >
                 {t("price_single")}
               </Text>
-              <Text style={{ flex: 1, textAlign: "center" }}>
+              <Text
+                category="s1"
+                style={
+                  {
+                    ...styles.columnHeaderText,
+                    flex: 1,
+                    textAlign: "center",
+                  } as TextStyle
+                }
+              >
                 {t("quantity")}
               </Text>
-              <Text style={{ flex: 2, textAlign: "right" }}>
+              <Text
+                category="s1"
+                style={
+                  {
+                    ...styles.columnHeaderText,
+                    flex: 2,
+                    textAlign: "right",
+                  } as TextStyle
+                }
+              >
                 {t("price_sum")}
               </Text>
             </View>
-            <Divider
-              style={{ height: 1, backgroundColor: theme["color-basic-700"] }}
-            ></Divider>
-            <View
-              style={{
-                paddingTop: 10,
-                paddingBottom: 10,
-              }}
-            >
+
+            <Divider style={styles.divider as ViewStyle} />
+
+            {/* Items */}
+            <View style={{ paddingVertical: 10 }}>
               {data.order && data.order.length > 0 ? (
                 data.order.map((item, index) => (
-                  <View
-                    key={item.$id}
-                    style={{
-                      display: "flex",
-                      width: "100%",
-                      flexDirection: "row",
-                      // width: Dimensions.get("window").width - 32,
-                      // alignItems:"center",
-                    }}
-                  >
-                    <Text style={{ flex: 3 }}>
+                  <View key={item.$id} style={styles.itemRow as ViewStyle}>
+                    <Text category="p1" style={styles.itemName as TextStyle}>
                       {index + 1}. {item.name}
                     </Text>
-                    <Text style={{ flex: 2, textAlign: "center" }}>
-                      {Intl.NumberFormat("en-US", {
+                    <Text category="p1" style={styles.itemPrice as TextStyle}>
+                      {Intl.NumberFormat("vi-VN", {
                         style: "currency",
                         currency: "VND",
                       }).format(item.price)}
                     </Text>
-                    <Text style={{ flex: 1, textAlign: "center" }}>
+                    <Text
+                      category="p1"
+                      style={styles.itemQuantity as TextStyle}
+                    >
                       x{item.count}
                     </Text>
-                    <Text style={{ flex: 2, textAlign: "right" }}>
-                      {Intl.NumberFormat("en-US", {
+                    <Text category="p1" style={styles.itemTotal as TextStyle}>
+                      {Intl.NumberFormat("vi-VN", {
                         style: "currency",
                         currency: "VND",
                       }).format(item.count * item.price)}
@@ -795,233 +879,212 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
                   </View>
                 ))
               ) : (
-                <></>
+                <Text
+                  style={
+                    {
+                      textAlign: "center",
+                      padding: 20,
+                      color: theme["color-basic-600"],
+                    } as TextStyle
+                  }
+                >
+                  {t("no_items")}
+                </Text>
               )}
             </View>
 
-            <Divider
-              style={{
-                borderStyle: "dashed",
-                borderTopWidth: 2,
-                backgroundColor: "transparent",
-                borderColor: theme["color-basic-700"],
-              }}
-            ></Divider>
-            <View
-              style={{
-                display: "flex",
-                flexDirection: "row",
-                justifyContent: "space-between",
-                paddingTop: 10,
-                paddingBottom: 10,
-                // width: Dimensions.get("window").width - 32,
-                // alignItems:"center",
-              }}
-            >
-              <Text style={{ fontWeight: "bold" }}>{t("total_price")} </Text>
-              <Text style={{ fontWeight: "bold" }}>
-                {Intl.NumberFormat("en-US", {
-                  style: "currency",
-                  currency: "VND",
-                }).format(totalPrice)}{" "}
-              </Text>
-            </View>
-            <View
-              style={{
-                display: "flex",
-                flexDirection: "row",
-                justifyContent: "space-between",
-                paddingTop: 10,
-              }}
-            >
-              <Text>
-                {data.couponCode
-                  ? `${t("coupon")} (${data.couponCode})`
-                  : t("coupon")}
-              </Text>
-              <Text>
-                {Intl.NumberFormat("en-US", {
-                  style: "currency",
-                  currency: "VND",
-                }).format(data.couponDiscount || 0)}
-              </Text>
-            </View>
-            <View
-              style={{
-                display: "flex",
-                flexDirection: "row",
-                justifyContent: "space-between",
-                paddingTop: 5,
-              }}
-            >
-              <Text>{t("order_location")}</Text>
-              <Text>
-                {data.location
-                  ? data.location === "dine-in"
-                    ? t("dine_in")
-                    : data.location === "take-away"
-                      ? t("take_away")
-                      : t("delivery")
-                  : t("dine_in")}{" "}
-                {/* Mặc định là tại quán */}
-              </Text>
+            <Divider style={styles.dashedDivider as ViewStyle} />
+
+            {/* Summary */}
+            <View style={styles.summaryContainer as ViewStyle}>
+              <View style={styles.summaryRow as ViewStyle}>
+                <Text category="s1" style={styles.summaryLabel as TextStyle}>
+                  {t("total_price")}
+                </Text>
+                <Text category="s1" style={styles.summaryValue as TextStyle}>
+                  {Intl.NumberFormat("vi-VN", {
+                    style: "currency",
+                    currency: "VND",
+                  }).format(totalPrice)}
+                </Text>
+              </View>
+
+              {data.subtract > 0 && (
+                <View style={styles.summaryRow as ViewStyle}>
+                  <Text style={styles.summaryLabel as TextStyle}>
+                    {t("subtract")}
+                  </Text>
+                  <Text style={styles.summaryValue as TextStyle}>
+                    -{" "}
+                    {Intl.NumberFormat("vi-VN", {
+                      style: "currency",
+                      currency: "VND",
+                    }).format(data.subtract)}
+                  </Text>
+                </View>
+              )}
+
+              {data.couponCode && (
+                <View style={styles.summaryRow as ViewStyle}>
+                  <Text style={styles.summaryLabel as TextStyle}>
+                    {t("coupon")} ({data.couponCode || ""})
+                  </Text>
+                  <Text style={styles.summaryValue as TextStyle}>
+                    -{" "}
+                    {Intl.NumberFormat("vi-VN", {
+                      style: "currency",
+                      currency: "VND",
+                    }).format(data.couponDiscount || 0)}
+                  </Text>
+                </View>
+              )}
+
+              {data.discount > 0 && (
+                <View style={styles.summaryRow as ViewStyle}>
+                  <Text style={styles.summaryLabel as TextStyle}>
+                    {t("discount")} (%)
+                  </Text>
+                  <Text style={styles.summaryValue as TextStyle}>
+                    {data.discount}%
+                  </Text>
+                </View>
+              )}
+
+              {appliedPromotion && promotionDiscount > 0 && (
+                <View style={styles.summaryRow as ViewStyle}>
+                  <Text style={styles.summaryLabel as TextStyle}>
+                    {t("promotion")} ({appliedPromotion.name || ""})
+                  </Text>
+                  <Text style={styles.summaryValue as TextStyle}>
+                    -{" "}
+                    {Intl.NumberFormat("vi-VN", {
+                      style: "currency",
+                      currency: "VND",
+                    }).format(promotionDiscount)}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.summaryRow as ViewStyle}>
+                <Text style={styles.summaryLabel as TextStyle}>
+                  {t("order_location")}
+                </Text>
+                <Text style={styles.summaryValue as TextStyle}>
+                  {data.location
+                    ? data.location === "dine-in"
+                      ? t("dine_in")
+                      : data.location === "take-away"
+                        ? t("take_away")
+                        : t("delivery")
+                    : t("dine_in")}
+                </Text>
+              </View>
+
+              <View style={styles.finalPriceRow as ViewStyle}>
+                <Text category="h6" style={styles.finalPriceLabel as TextStyle}>
+                  {t("final_price")}
+                </Text>
+                <Text category="h6" style={styles.finalPriceValue as TextStyle}>
+                  {Intl.NumberFormat("vi-VN", {
+                    style: "currency",
+                    currency: "VND",
+                  }).format(finalPrice)}
+                </Text>
+              </View>
             </View>
 
-            <View
-              style={{
-                display: "flex",
-                flexDirection: "row",
-                justifyContent: "space-between",
-                paddingTop: 10,
-                paddingBottom: 10,
-                // width: Dimensions.get("window").width - 32,
-                // alignItems:"center",
-              }}
-            >
-              <Text style={{ fontWeight: "bold" }}>{t("final_price")}</Text>
-              <Text style={{ fontWeight: "bold" }}>
-                {Intl.NumberFormat("en-US", {
-                  style: "currency",
-                  currency: "VND",
-                }).format(finalPrice)}
-              </Text>
-            </View>
+            <Divider style={styles.dashedDivider as ViewStyle} />
 
-            <Divider
-              style={{
-                borderStyle: "dashed",
-                borderTopWidth: 2,
-                backgroundColor: "transparent",
-                borderColor: theme["color-basic-700"],
-              }}
-            ></Divider>
-            <View
-              style={{
-                marginTop: 10,
-                marginBottom: 10,
-                backgroundColor: theme["color-primary-100"],
-                borderRadius: 12,
-                padding: 15,
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.1,
-                shadowRadius: 3,
-                elevation: 2,
-              }}
-            >
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginBottom: 8,
-                }}
-              >
+            {/* Payment Method */}
+            <View style={styles.paymentMethodContainer as ViewStyle}>
+              <View style={styles.paymentMethodHeader as ViewStyle}>
                 <Icon
-                  style={{ width: 20, height: 20, marginRight: 8 }}
+                  style={styles.paymentMethodIcon}
                   fill={theme["color-primary-500"]}
                   name="credit-card-outline"
                 />
                 <Text
                   category="s1"
-                  style={{
-                    textAlign: "center",
-                    fontWeight: "bold",
-                    color: theme["color-primary-600"],
-                  }}
+                  style={styles.paymentMethodText as TextStyle}
                 >
                   {data.status === "cash"
                     ? t("cash")
                     : data.status === "transfer"
                       ? t("transfer")
-                      : t("payment_method")}
+                      : t("unpaid")}
                 </Text>
               </View>
 
               {userInfo.WIFI && (
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: "white",
-                    borderRadius: 8,
-                    padding: 10,
-                    marginTop: 5,
-                  }}
-                >
+                <View style={styles.wifiContainer as ViewStyle}>
                   <Icon
                     style={{ width: 16, height: 16, marginRight: 8 }}
                     fill={theme["color-success-500"]}
                     name="wifi-outline"
                   />
-                  <Text
-                    style={{
-                      textAlign: "center",
-                      fontSize: 14,
-                      color: theme["color-basic-800"],
-                    }}
-                  >
+                  <Text style={styles.wifiInfo as TextStyle}>
                     {`${t("wifi")}: ${userInfo.WIFI}`}
                   </Text>
                 </View>
               )}
             </View>
-            <Divider
-              style={{
-                borderStyle: "dashed",
-                borderTopWidth: 2,
-                backgroundColor: "transparent",
-                borderColor: theme["color-basic-700"],
-              }}
-            ></Divider>
-            <View
-              style={{
-                display: "flex",
-                alignItems: "center",
-                paddingTop: 20,
-              }}
-            >
+
+            <Divider style={styles.dashedDivider as ViewStyle} />
+
+            {/* QR Code */}
+            <View style={styles.qrCodeContainer as ViewStyle}>
               <QRCode
                 size={150}
                 value={data.$id}
-                // logo={{uri: base64Logo}}
-                // logoSize={20}
                 logoBackgroundColor="transparent"
               />
+              <Text style={styles.thankYouText as TextStyle}>
+                {t("thank_you_for_purchase")}
+              </Text>
             </View>
           </ViewShot>
         ) : (
-          <></>
+          <View
+            style={{
+              flex: 1,
+              justifyContent: "center",
+              alignItems: "center",
+              padding: 20,
+            }}
+          >
+            <Spinner size="large" />
+            <Text category="s1" style={{ marginTop: 16 }}>
+              {t("loading_receipt")}
+            </Text>
+          </View>
         )}
       </ScrollView>
-      // Thêm nút hủy đơn trong ReceiptScreen.tsx
-      <Layout level="1" style={styles.buttons as ViewStyle}>
+
+      {/* Action Buttons */}
+      <Layout level="1" style={styles.buttonsContainer as ViewStyle}>
         <Button
-          style={{ flex: 1, marginRight: 5, borderWidth: 0 }}
+          style={styles.actionButton as ViewStyle}
           appearance="outline"
           status="primary"
           onPress={() => printReceipt()}
           accessoryLeft={() => (
             <Icon
-              style={styles.icon}
+              style={styles.buttonIcon}
               fill={theme["color-primary-500"]}
-              name="printer"
+              name="printer-outline"
             />
           )}
         >
           {t("print_receipt")}
         </Button>
 
-        {/* Thêm nút hủy đơn hàng */}
         <Button
-          style={{ flex: 1, marginRight: 5, borderWidth: 0 }}
+          style={styles.actionButton as ViewStyle}
           appearance="outline"
           status="danger"
           onPress={() => showReturnOrderModal()}
           accessoryLeft={() => (
             <Icon
-              style={styles.icon}
+              style={styles.buttonIcon}
               fill={theme["color-danger-500"]}
               name="close-circle-outline"
             />
@@ -1031,7 +1094,8 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
         </Button>
 
         <Button
-          style={{ flex: 1, marginLeft: 5 }}
+          style={styles.actionButton as ViewStyle}
+          status="primary"
           onPress={() => {
             navigation.reset({
               index: 1,
@@ -1041,35 +1105,33 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
               ],
             });
           }}
+          accessoryLeft={() => (
+            <Icon style={styles.buttonIcon} fill="white" name="plus-outline" />
+          )}
         >
           {t("create_new_order")}
         </Button>
       </Layout>
+
+      {/* Return Modal */}
       <Modal
         visible={returnModalVisible}
         backdropStyle={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
         onBackdropPress={() => setReturnModalVisible(false)}
         style={{ width: "90%" }}
       >
-        <Card>
-          <Text category="h6" style={{ marginBottom: 16, textAlign: "center" }}>
+        <Card style={styles.modalCard as ViewStyle} disabled>
+          <Text category="h6" style={styles.modalTitle as TextStyle}>
             {t("return_order")}
           </Text>
 
-          <Text category="s1" style={{ marginBottom: 8 }}>
+          <Text category="s1" style={{ marginBottom: 12 }}>
             {t("select_return_items")}:
           </Text>
 
-          <ScrollView style={{ maxHeight: 200 }}>
+          <ScrollView style={{ maxHeight: 200, marginBottom: 16 }}>
             {data?.order.map((item, index) => (
-              <View
-                key={index}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  marginBottom: 8,
-                }}
-              >
+              <View key={index} style={styles.returnItemContainer as ViewStyle}>
                 <Button
                   appearance={selectedItems[index] ? "filled" : "outline"}
                   status="primary"
@@ -1085,10 +1147,14 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
                       }
                     />
                   )}
-                  style={{ marginRight: 8 }}
+                  style={styles.returnItemCheckbox as ViewStyle}
                 />
                 <Text>
-                  {item.name} x{item.count}
+                  {item.name} x{item.count} -{" "}
+                  {Intl.NumberFormat("vi-VN", {
+                    style: "currency",
+                    currency: "VND",
+                  }).format(item.price * item.count)}
                 </Text>
               </View>
             ))}
@@ -1101,10 +1167,10 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
             onChangeText={setReturnReason}
             multiline
             textStyle={{ minHeight: 64 }}
-            style={{ marginVertical: 16 }}
+            style={styles.returnReasonInput as any}
           />
 
-          <Text category="s1" style={{ marginBottom: 8 }}>
+          <Text category="s1" style={styles.returnAmountText as TextStyle}>
             {t("total_return_amount")}:{" "}
             {data && (data.status === "cash" || data.status === "transfer")
               ? Intl.NumberFormat("vi-VN", {
@@ -1114,26 +1180,26 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
               : t("unpaid_no_refund")}
           </Text>
 
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              marginTop: 16,
-            }}
-          >
+          <View style={styles.modalButtonsContainer as ViewStyle}>
             <Button
               status="basic"
               onPress={() => setReturnModalVisible(false)}
-              style={{ flex: 1, marginRight: 8 }}
+              style={styles.modalButton as ViewStyle}
             >
               {t("cancel")}
             </Button>
             <Button
               status="danger"
               onPress={handleReturnOrder}
-              style={{ flex: 1 }}
+              style={styles.modalButton as ViewStyle}
+              disabled={waiting}
+              accessoryLeft={
+                waiting
+                  ? () => <Spinner size="small" status="basic" />
+                  : undefined
+              }
             >
-              {t("confirm_return")}
+              {waiting ? t("processing") : t("confirm_return")}
             </Button>
           </View>
         </Card>
@@ -1142,62 +1208,222 @@ const ReceiptScreen: React.FC<ReceiptScreenProps> = ({ route, navigation }) => {
   );
 };
 
-const styleSheet = StyleService.create<ReceiptStyles>({
+const styleSheet = StyleService.create({
   container: {
     flex: 1,
     paddingBottom: 100,
   },
-  productCard: {
-    display: "flex",
-    flexDirection: "row",
+  receiptContainer: {
+    padding: 16,
+    backgroundColor: "background-basic-color-1",
+    borderRadius: 16,
+    margin: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 4,
   },
-  cardInfo: {
-    display: "flex",
+  receiptHeader: {
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  receiptTitle: {
+    fontWeight: "bold",
+    marginBottom: 4,
+    color: "color-primary-600",
+  },
+  storeName: {
+    marginBottom: 4,
+  },
+  receiptDateTime: {
+    color: "text-hint-color",
+    marginBottom: 4,
+  },
+  tableInfo: {
+    color: "text-hint-color",
+  },
+  divider: {
+    backgroundColor: "color-basic-400",
+    height: 1,
+  },
+  dashedDivider: {
+    height: 1,
+    marginVertical: 12,
+    borderStyle: "dashed",
+    borderWidth: 1,
+    borderColor: "color-basic-400",
+    backgroundColor: "transparent",
+  },
+  columnHeader: {
+    flexDirection: "row",
+    paddingVertical: 8,
+    backgroundColor: "color-basic-200",
+    borderRadius: 4,
+  },
+  columnHeaderText: {
+    fontWeight: "bold",
+    fontSize: 14,
+    paddingHorizontal: 4,
+  },
+  itemRow: {
+    flexDirection: "row",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "color-basic-300",
+  },
+  itemName: {
+    flex: 3,
+    paddingRight: 4,
+  },
+  itemPrice: {
+    flex: 2,
+    textAlign: "center",
+  },
+  itemQuantity: {
+    flex: 1,
+    textAlign: "center",
+  },
+  itemTotal: {
+    flex: 2,
+    textAlign: "right",
+  },
+  summaryContainer: {
+    marginVertical: 12,
+  },
+  summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    width: Dimensions.get("window").width - 100,
-    alignItems: "center",
+    paddingVertical: 4,
   },
-  cardImg: {
-    aspectRatio: 1,
-    margin: 20,
-    width: 45,
-    height: 45,
+  summaryLabel: {
+    color: "text-hint-color",
+  },
+  summaryValue: {},
+  finalPriceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 8,
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "color-basic-300",
+  },
+  finalPriceLabel: {
+    fontWeight: "bold",
+  },
+  finalPriceValue: {
+    fontWeight: "bold",
+    color: "color-primary-600",
+  },
+  paymentMethodContainer: {
+    backgroundColor: "color-primary-100",
+    borderRadius: 12,
+    padding: 16,
+    marginVertical: 12,
+  },
+  paymentMethodHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  paymentMethodIcon: {
+    width: 24,
+    height: 24,
+    marginRight: 8,
+  },
+  paymentMethodText: {
+    fontWeight: "bold",
+    color: "color-primary-600",
+  },
+  wifiContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "background-basic-color-1",
+    borderRadius: 8,
+    padding: 8,
+  },
+  wifiInfo: {
+    color: "text-basic-color",
+    fontSize: 14,
+  },
+  qrCodeContainer: {
+    alignItems: "center",
+    marginVertical: 12,
+  },
+  thankYouText: {
+    marginTop: 16,
+    color: "text-hint-color",
+    textAlign: "center",
+    fontStyle: "italic",
+  },
+  buttonsContainer: {
+    flexDirection: "row",
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+    paddingBottom: 32,
+    justifyContent: "space-between",
+    backgroundColor: "background-basic-color-1",
+    borderTopWidth: 1,
+    borderTopColor: "color-basic-300",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  actionButton: {
+    flex: 1,
+    marginHorizontal: 4,
+    borderRadius: 8,
+  },
+  buttonIcon: {
+    width: 20,
+    height: 20,
   },
   headerRight: {
-    display: "flex",
     flexDirection: "row",
   },
   menuIcon: {
     backgroundColor: "transparent",
     borderWidth: 0,
+    marginHorizontal: 4,
   },
-  input: {
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-    borderTopWidth: 0,
-    backgroundColor: "white",
-    borderRadius: 0,
-    // padding: 10
-    // flex: 1,
+  modalCard: {
+    borderRadius: 12,
+    padding: 16,
   },
-
-  countBtn: { backgroundColor: "transparent", borderWidth: 0 },
-  countIcon: {
-    width: 20,
-    height: 20,
+  modalTitle: {
+    textAlign: "center",
+    marginBottom: 16,
   },
-  buttons: {
-    display: "flex",
+  returnItemContainer: {
     flexDirection: "row",
-    position: "absolute",
-    bottom: 0,
-    padding: 10,
-    paddingBottom: 30,
+    alignItems: "center",
+    marginBottom: 8,
   },
-  icon: {
-    width: 20,
-    height: 20,
+  returnItemCheckbox: {
+    marginRight: 12,
+  },
+  returnReasonInput: {
+    marginBottom: 16,
+  },
+  returnAmountText: {
+    marginBottom: 16,
+    color: "color-primary-600",
+    fontWeight: "bold",
+  },
+  modalButtonsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  modalButton: {
+    flex: 1,
+    marginHorizontal: 4,
   },
 });
 

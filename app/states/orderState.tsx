@@ -45,6 +45,8 @@ export const currentOrderAtom = atom<{
   customer?: string;
   customerName?: string;
   customerPhone?: string;
+  promotionId?: string;
+  promotionDiscount?: number;
 }>({
   key: "currentOrder",
   default: {

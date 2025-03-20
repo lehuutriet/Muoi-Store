@@ -16,7 +16,7 @@
   "create_order": "Tạo đơn hàng",
   "create_product": "Tạo sản phẩm",
   "create_more": "Tạo thêm",
-  "create_new_order": "Tạo đơn mới",
+  "create_new_order": "Tạo đơn",
   "chat": "CHAT",
   "create": "Tạo",
   "create_category": "Tạo danh mục",
@@ -470,11 +470,13 @@
   "add_coupon": "Thêm mã giảm giá",
   "enter_promotion_name": "Nhập tên khuyến mã",
   "usage_limit_reached": "Đã đạt giới hạn sử dụng",
-  "enter_note_here":"Nhập ghi chú ở đây"
-
-
-  
-  
-  
-  
+  "enter_note_here":"Nhập ghi chú ở đây",
+  "thank_you_for_purchase" : "Cảm ơn bạn đã mua hàng",
+  "promotion":"Khuyến mãi",
+  "add_promotion" : "Thêm khuyến mãi",
+  "select_promotion" : "Chọn khuyến mãi",
+  "need_more_required_products" : "Cần thêm sản phẩm yêu cầu",
+  "product_not_in_order" : "Sản phẩm không có trong đơn hàng",
+  "need_all_combo_products" : "Cần tất cả sản phẩm trong combo",
+  "promotion_applied_successfully" : "Khuyến mãi đã được áp dụng thành công"
 } 

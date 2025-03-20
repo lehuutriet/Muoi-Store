@@ -503,7 +503,11 @@ const PromotionScreen = ({}) => {
       </View>
     );
   };
-
+  const comboPriceInputProps = useMaskedInputProps({
+    value: comboPrice,
+    onChangeText: (masked, unmasked) => setComboPrice(unmasked),
+    mask: vndMask,
+  });
   const renderBuyXGetYDetails = (promotion: Promotion) => {
     // Phân tích details
     const details: any = {};
@@ -906,11 +910,7 @@ const PromotionScreen = ({}) => {
 
               <Input
                 label={t("combo_price")}
-                {...useMaskedInputProps({
-                  value: comboPrice,
-                  onChangeText: (masked, unmasked) => setComboPrice(unmasked),
-                  mask: vndMask,
-                })}
+                {...comboPriceInputProps} // Sử dụng biến đã được tạo
                 keyboardType="numeric"
                 style={styles.input as TextStyle}
               />
