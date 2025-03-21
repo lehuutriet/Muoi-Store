@@ -316,7 +316,7 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
     // Tìm sản phẩm cần thêm vào đơn hàng
     const freeProduct = allProducts.find((p) => p.$id === freeProductId);
     if (freeProduct) {
-      // Thêm sản phẩm miễn phí vào đơn hàng
+      // Tạo một đối tượng mới thay vì sử dụng trực tiếp từ allProducts
       const orderItem: OrderItem = {
         $id: freeProduct.$id,
         name: freeProduct.name,
@@ -325,7 +325,7 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
         photoUrl: freeProduct.photoUrl,
       };
 
-      // Cập nhật đơn hàng
+      // Tạo một bản sao của danh sách đơn hàng
       const newOrder = [...order.order];
 
       // Kiểm tra xem sản phẩm đã có trong đơn hàng chưa
@@ -334,8 +334,11 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
       );
 
       if (existingItemIndex >= 0) {
-        // Nếu đã có, tăng số lượng
-        newOrder[existingItemIndex].count += freeQuantity;
+        // Nếu đã có, tạo một đối tượng mới với số lượng đã cập nhật
+        newOrder[existingItemIndex] = {
+          ...newOrder[existingItemIndex],
+          count: newOrder[existingItemIndex].count + freeQuantity,
+        };
       } else {
         // Nếu chưa có, thêm vào
         newOrder.push(orderItem);
@@ -349,7 +352,6 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
       });
 
       setAppliedPromotion(promotion);
-      // Không đặt promotionDiscount, để giữ 0
       setPromotionDiscount(0);
 
       Alert.alert("", t("promotion_applied_successfully"));
@@ -658,7 +660,7 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
       backdropStyle={styles.backdrop as ViewStyle}
       onBackdropPress={() => setCouponModalVisible(false)}
     >
-      <Card style={styles.modalCard as ViewStyle}>
+      <Card style={styles.modalCard as ViewStyle} disabled={true}>
         <Text category="h6" style={styles.modalTitle as TextStyle}>
           {t("select_coupon")}
         </Text>
@@ -951,7 +953,46 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
       },
     []
   );
+  // Khi xóa mã khuyến mãi
+  const handleRemovePromotion = () => {
+    // Nếu không có khuyến mãi đang áp dụng, return
+    if (!appliedPromotion) return;
 
+    // Xử lý đặc biệt cho loại "buy_x_get_y"
+    if (appliedPromotion.type === "buy_x_get_y") {
+      // Lấy ID sản phẩm miễn phí
+      const freeProductId = appliedPromotion.details
+        .find((detail) => detail.startsWith("freeProductId:"))
+        ?.split(":")[1];
+
+      if (freeProductId) {
+        // Lọc ra các sản phẩm không phải là sản phẩm miễn phí
+        const newOrder = order.order.filter((item) => {
+          // Giữ lại tất cả sản phẩm không phải miễn phí
+          return !(item.$id === freeProductId && item.price === 0);
+        });
+
+        // Cập nhật đơn hàng
+        setOrder({
+          ...order,
+          order: newOrder,
+          promotionId: undefined,
+          promotionDiscount: 0,
+        });
+      }
+    } else {
+      // Các loại khuyến mãi khác chỉ cần cập nhật state
+      setOrder({
+        ...order,
+        promotionId: undefined,
+        promotionDiscount: 0,
+      });
+    }
+
+    // Cập nhật các state khác
+    setAppliedPromotion(null);
+    setPromotionDiscount(0);
+  };
   const extractIngredientsFromRecipe = (recipe: any) => {
     try {
       if (!recipe.ingredients || !Array.isArray(recipe.ingredients)) {
@@ -1239,7 +1280,7 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
       backdropStyle={styles.backdrop as ViewStyle}
       onBackdropPress={() => setPromotionModalVisible(false)}
     >
-      <Card style={styles.modalCard as ViewStyle}>
+      <Card style={styles.modalCard as ViewStyle} disabled={true}>
         <Text category="h6" style={styles.modalTitle as TextStyle}>
           {t("select_promotion")}
         </Text>
@@ -1559,10 +1600,7 @@ const ReviewOrderScreen: React.FC<ReviewOrderScreenProps> = ({
                 accessoryLeft={(props) => (
                   <Icon {...props} name="close-outline" />
                 )}
-                onPress={() => {
-                  setAppliedPromotion(null);
-                  setPromotionDiscount(0);
-                }}
+                onPress={handleRemovePromotion} // Thay đổi ở đây
               />
             </View>
           )}

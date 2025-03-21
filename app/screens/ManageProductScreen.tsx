@@ -46,8 +46,11 @@ import {
   MaterialTopTabBarProps,
   MaterialTopTabNavigationOptions,
 } from "@react-navigation/material-top-tabs";
+import { LinearGradient } from "expo-linear-gradient";
 
 const { Navigator, Screen } = createMaterialTopTabNavigator();
+const { width } = Dimensions.get("window");
+
 interface FunctionCardProps {
   cardProps: {
     visible: boolean;
@@ -113,7 +116,7 @@ const ProductScreen = () => {
   ];
 
   return (
-    <Layout style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+    <Layout style={styles.productScreenContainer as ViewStyle}>
       {categories && categories.length > 0 ? (
         <CategoryScrollbar
           selectedCategory={selectedCategory}
@@ -131,6 +134,19 @@ const ProductScreen = () => {
         actions={productScreenActions}
         overrideWithAction={true}
         showBackground={false}
+        color="#6C5CE7"
+        floatingIcon={
+          <Icon
+            name="plus-outline"
+            fill="#FFFFFF"
+            style={styles.floatingActionIcon}
+          />
+        }
+        buttonSize={60}
+        iconHeight={20}
+        iconWidth={20}
+        distanceToEdge={16}
+        overlayColor="rgba(0, 0, 0, 0.7)"
         onPressItem={(screenName) => {
           console.log(`selected button:: ${screenName}`);
           RootNavigation.navigate(screenName, {
@@ -150,6 +166,7 @@ const FunctionCard: React.FC<FunctionCardProps> = ({
   const { t } = useTranslation();
   const theme = useTheme();
   const { getAllItem } = useDatabases();
+  const styles = useStyleSheet(styleSheet);
 
   const categoryScreenActions = [
     {
@@ -191,6 +208,19 @@ const FunctionCard: React.FC<FunctionCardProps> = ({
       onPressMain={() => console.log("floating button pressed::")}
       overrideWithAction={true}
       showBackground={false}
+      color="#6C5CE7"
+      floatingIcon={
+        <Icon
+          name="plus-outline"
+          fill="#FFFFFF"
+          style={styles.floatingActionIcon}
+        />
+      }
+      buttonSize={60}
+      iconHeight={20}
+      iconWidth={20}
+      distanceToEdge={16}
+      overlayColor="rgba(0, 0, 0, 0.7)"
       onPressItem={(screenName) => {
         console.log(`selected button:: ${screenName}`);
         setCardPropsCallback({
@@ -198,7 +228,6 @@ const FunctionCard: React.FC<FunctionCardProps> = ({
           visible: true,
           itemInfo: DEFAULT_CARD_PROPS.itemInfo,
         });
-        // RootNavigation.navigate(screenName);
       }}
     />
   );
@@ -213,9 +242,8 @@ const CategoryCard = ({
   const [category, setCategory] = useRecoilState(
     categoryAtomFamily(categoryId)
   );
-  console.log("category::", categoryId);
-
   const theme = useTheme();
+
   return (
     <Card
       onPress={() =>
@@ -225,25 +253,28 @@ const CategoryCard = ({
           itemInfo: category,
         })
       }
-      style={styles.categoryCard as ViewStyle}
-      // title={category.name}
-      // description="A set of React Native components"
-      // accessoryLeft={(props) => (
-      //   <Icon {...props} fill="blue" name="shopping-bag-outline"></Icon>
-      // )}
+      style={styles.categoryCard as StyleProp<ViewStyle>}
     >
-      <View
-        style={{
-          display: "flex",
-          flexDirection: "row",
-        }}
-      >
+      <LinearGradient
+        colors={["rgba(108, 92, 231, 0.1)", "rgba(108, 92, 231, 0.05)"]}
+        style={styles.cardGradient as StyleProp<ViewStyle>}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
+      <View style={styles.categoryCardContent as StyleProp<ViewStyle>}>
+        <View style={styles.categoryIconContainer as StyleProp<ViewStyle>}>
+          <Icon
+            style={styles.categoryIcon}
+            name="folder-outline"
+            fill={theme["color-primary-500"]}
+          />
+        </View>
+        <Text style={styles.categoryName as TextStyle}>{category.name}</Text>
         <Icon
-          style={styles.icon}
-          name="clipboard-outline"
-          fill={theme["color-info-800"]}
-        ></Icon>
-        <Text style={{ paddingLeft: 10 }}> {category.name}</Text>
+          style={styles.editIcon}
+          name="edit-2-outline"
+          fill={theme["color-primary-400"]}
+        />
       </View>
     </Card>
   );
@@ -257,9 +288,9 @@ const MemoizedCategoryCard = memo(
 const CategoryScreen = () => {
   const styles = useStyleSheet(styleSheet);
   const { t } = useTranslation();
-  // const { getAllItem } = useDatabases();
   const [cardProps, setCardProps] = useState(DEFAULT_CARD_PROPS);
   const categoryIds = useRecoilValue(categoryIdsAtom);
+  const theme = useTheme();
 
   const setCardPropsCallback = useCallback((props: any) => {
     setCardProps((prev) => ({
@@ -269,40 +300,54 @@ const CategoryScreen = () => {
     }));
   }, []);
 
-  // const refreshCategory = useRecoilCallback(
-  //   ({ set }) =>
-  //     async (refresh) => {
-  //       setCardPropsCallback(DEFAULT_CARD_PROPS);
-  //       if (refresh) {
-  //         const categoryData = await getAllItem(COLLECTION_IDS.categories);
-  //         set(allCategoryAtom, categoryData);
-  //         const ids = [];
-  //         for (const category of categoryData) {
-  //           ids.push(category.$id);
-  //           set(categoryAtomFamily(category.$id), category);
-  //         }
-  //         set(categoryIdsAtom, ids);
-  //       }
-  //     },
-  //   []
-  // );
-
   return (
-    <Layout style={{ flex: 1, alignItems: "center" }}>
-      <ScrollView
-        style={styles.list as StyleProp<ViewStyle>}
-        contentContainerStyle={styles.listContainer as StyleProp<ViewStyle>}
-      >
-        {categoryIds.map((id) => (
-          <MemoizedCategoryCard
-            key={id}
-            categoryId={id}
-            setCardPropsCallback={setCardPropsCallback}
+    <Layout style={styles.categoryScreenContainer as ViewStyle}>
+      {!cardProps.visible && categoryIds.length === 0 && (
+        <View style={styles.emptyCategoryContainer as ViewStyle}>
+          <Icon
+            name="folder-outline"
+            fill={theme["color-basic-400"]}
+            style={styles.emptyStateIcon}
           />
-        ))}
+          <Text style={styles.emptyStateText as TextStyle}>
+            {t("no_categories_found")}
+          </Text>
+          <Button
+            style={styles.createFirstCategoryButton as ViewStyle}
+            status="primary"
+            appearance="outline"
+            accessoryLeft={(props) => <Icon {...props} name="plus-outline" />}
+            onPress={() =>
+              setCardPropsCallback({
+                method: "create",
+                visible: true,
+                itemInfo: DEFAULT_CARD_PROPS.itemInfo,
+              })
+            }
+          >
+            {t("create_category")}
+          </Button>
+        </View>
+      )}
 
-        <Layout style={{ paddingBottom: 100 } as StyleProp<ViewStyle>}></Layout>
-      </ScrollView>
+      {!cardProps.visible && categoryIds.length > 0 && (
+        <ScrollView
+          style={styles.categoryList as StyleProp<ViewStyle>}
+          contentContainerStyle={
+            styles.categoryListContainer as StyleProp<ViewStyle>
+          }
+          showsVerticalScrollIndicator={false}
+        >
+          {categoryIds.map((id) => (
+            <MemoizedCategoryCard
+              key={id}
+              categoryId={id}
+              setCardPropsCallback={setCardPropsCallback}
+            />
+          ))}
+          <View style={{ paddingBottom: 100 }} />
+        </ScrollView>
+      )}
 
       <FunctionCard
         cardProps={cardProps}
@@ -326,9 +371,34 @@ const TopTabBar: React.FC<TopTabBarProps> = (props) => {
       onSelect={(index) =>
         props.navigation.navigate(props.state.routeNames[index])
       }
+      indicatorStyle={styles.tabIndicator as ViewStyle}
     >
-      <Tab title={t("product")} />
-      <Tab title={t("category")} />
+      <Tab
+        title={() => (
+          <Text
+            style={
+              props.state.index === 0
+                ? (styles.activeTabText as TextStyle)
+                : (styles.tabText as TextStyle)
+            }
+          >
+            {t("product")}
+          </Text>
+        )}
+      />
+      <Tab
+        title={() => (
+          <Text
+            style={
+              props.state.index === 1
+                ? (styles.activeTabText as TextStyle)
+                : (styles.tabText as TextStyle)
+            }
+          >
+            {t("category")}
+          </Text>
+        )}
+      />
     </TabBar>
   );
 };
@@ -424,48 +494,77 @@ const ManageProductScreen = () => {
           })
         }
       >
+        <LinearGradient
+          colors={["rgba(108, 92, 231, 0.1)", "rgba(108, 92, 231, 0.05)"]}
+          style={styles.cardGradient as StyleProp<ViewStyle>}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
         <View style={styles.categoryCardContent as StyleProp<ViewStyle>}>
+          <View style={styles.categoryIconContainer as StyleProp<ViewStyle>}>
+            <Icon
+              style={styles.categoryIcon}
+              name="folder-outline"
+              fill={theme["color-primary-500"]}
+            />
+          </View>
+          <Text style={styles.categoryName as TextStyle}>{category.name}</Text>
           <Icon
-            style={styles.icon as StyleProp<ViewStyle>}
-            name="clipboard-outline"
-            fill={theme["color-info-800"]}
+            style={styles.editIcon}
+            name="edit-2-outline"
+            fill={theme["color-primary-400"]}
           />
-          <Text style={styles.categoryName as StyleProp<TextStyle>}>
-            {category.name}
-          </Text>
         </View>
       </Card>
     );
   };
 
   return (
-    <Layout style={styles.container as StyleProp<ViewStyle>}>
-      {/* Tab Switcher */}
-      <View style={styles.tabSwitcher as StyleProp<ViewStyle>}>
-        <Button
-          style={[
-            styles.tabButton as StyleProp<ViewStyle>,
-            activeTab === "product"
-              ? (styles.activeTab as StyleProp<ViewStyle>)
-              : null,
-          ]}
-          appearance={activeTab === "product" ? "filled" : "outline"}
-          onPress={() => setActiveTab("product")}
-        >
-          {t("product")}
-        </Button>
-        <Button
-          style={[
-            styles.tabButton as StyleProp<ViewStyle>,
-            activeTab === "category"
-              ? (styles.activeTab as StyleProp<ViewStyle>)
-              : null,
-          ]}
-          appearance={activeTab === "category" ? "filled" : "outline"}
-          onPress={() => setActiveTab("category")}
-        >
-          {t("category")}
-        </Button>
+    <Layout style={styles.container as ViewStyle}>
+      {/* Header with modern tab switcher */}
+      <View style={styles.header as ViewStyle}>
+        <Text category="h5" style={styles.headerTitle as TextStyle}>
+          {t(activeTab === "product" ? "manage_products" : "manage_categories")}
+        </Text>
+
+        <View style={styles.tabSwitcher as ViewStyle}>
+          <Button
+            style={
+              [
+                styles.tabButton,
+                activeTab === "product" ? styles.activeTab : null,
+              ] as StyleProp<ViewStyle>
+            }
+            appearance={activeTab === "product" ? "filled" : "ghost"}
+            status="primary"
+            onPress={() => setActiveTab("product")}
+            accessoryLeft={
+              activeTab === "product"
+                ? (props) => <Icon {...props} name="cube" />
+                : (props) => <Icon {...props} name="cube-outline" />
+            }
+          >
+            {t("product")}
+          </Button>
+          <Button
+            style={
+              [
+                styles.tabButton,
+                activeTab === "category" ? styles.activeTab : null,
+              ] as StyleProp<ViewStyle>
+            }
+            appearance={activeTab === "category" ? "filled" : "ghost"}
+            status="primary"
+            onPress={() => setActiveTab("category")}
+            accessoryLeft={
+              activeTab === "category"
+                ? (props) => <Icon {...props} name="folder" />
+                : (props) => <Icon {...props} name="folder-outline" />
+            }
+          >
+            {t("category")}
+          </Button>
+        </View>
       </View>
 
       <Divider />
@@ -498,13 +597,38 @@ const ManageProductScreen = () => {
           contentContainerStyle={
             styles.categoryListContainer as StyleProp<ViewStyle>
           }
+          showsVerticalScrollIndicator={false}
         >
           {categoryIds.length > 0 ? (
             categoryIds.map((id) => <CategoryCardItem key={id} id={id} />)
           ) : (
-            <Text style={styles.emptyStateText as StyleProp<TextStyle>}>
-              {t("no_categories_found")}
-            </Text>
+            <View style={styles.emptyCategoryContainer as ViewStyle}>
+              <Icon
+                name="folder-outline"
+                fill={theme["color-basic-400"]}
+                style={styles.emptyStateIcon}
+              />
+              <Text style={styles.emptyStateText as TextStyle}>
+                {t("no_categories_found")}
+              </Text>
+              <Button
+                style={styles.createFirstCategoryButton as ViewStyle}
+                status="primary"
+                appearance="outline"
+                accessoryLeft={(props) => (
+                  <Icon {...props} name="plus-outline" />
+                )}
+                onPress={() =>
+                  setCardPropsCallback({
+                    method: "create",
+                    visible: true,
+                    itemInfo: DEFAULT_CARD_PROPS.itemInfo,
+                  })
+                }
+              >
+                {t("create_category")}
+              </Button>
+            </View>
           )}
           <View style={{ paddingBottom: 100 }} />
         </ScrollView>
@@ -516,6 +640,19 @@ const ManageProductScreen = () => {
           actions={getActionButtons()}
           overrideWithAction={true}
           showBackground={false}
+          color="#6C5CE7"
+          floatingIcon={
+            <Icon
+              name="plus-outline"
+              fill="#FFFFFF"
+              style={styles.floatingActionIcon}
+            />
+          }
+          buttonSize={60}
+          iconHeight={20}
+          iconWidth={20}
+          distanceToEdge={16}
+          overlayColor="rgba(0, 0, 0, 0.7)"
           onPressItem={(screenName) => {
             if (screenName === "CreateProductScreen") {
               RootNavigation.navigate(screenName, {
@@ -536,74 +673,218 @@ const ManageProductScreen = () => {
   );
 };
 
-// StyleSheet với kiểu rõ ràng
-// Thêm các thuộc tính thiếu vào StyleSheet
+// StyleSheet với kiểu rõ ràng và thiết kế hiện đại
 const styleSheet = StyleService.create({
   container: {
     flex: 1,
     backgroundColor: "background-basic-color-1",
   } as ViewStyle,
+
+  // Header styles
+  header: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: "background-basic-color-1",
+    borderBottomWidth: 1,
+    borderBottomColor: "border-basic-color-3",
+  } as ViewStyle,
+
+  headerTitle: {
+    marginBottom: 16,
+    fontWeight: "bold",
+    color: "text-primary-color",
+  } as TextStyle,
+
+  // Tab switcher styles
   tabSwitcher: {
     flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "background-basic-color-1",
+    borderRadius: 12,
+    padding: 4,
+    backgroundColor: "background-basic-color-2",
+    elevation: 2,
+    shadowColor: "rgba(0, 0, 0, 0.1)",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 4,
   } as ViewStyle,
+
   tabButton: {
     flex: 1,
-    marginHorizontal: 4,
-    borderRadius: 4,
-  } as ViewStyle,
-  activeTab: {
-    borderWidth: 0,
-  } as ViewStyle,
-  searchInput: {
-    margin: 16,
     borderRadius: 8,
+    marginHorizontal: 2,
+    borderWidth: 0,
+    paddingVertical: 12,
   } as ViewStyle,
+
+  activeTab: {
+    backgroundColor: "color-primary-500",
+  } as ViewStyle,
+
+  // Material tab bar styles
+  topTabBar: {
+    elevation: 8,
+    shadowColor: "rgba(0, 0, 0, 0.15)",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    height: 56,
+    backgroundColor: "background-basic-color-1",
+    borderBottomWidth: 0,
+  } as ViewStyle,
+
+  tabIndicator: {
+    backgroundColor: "color-primary-500",
+    height: 3,
+    borderRadius: 3,
+  } as ViewStyle,
+
+  tabText: {
+    fontWeight: "normal",
+    fontSize: 14,
+    color: "text-hint-color",
+  } as TextStyle,
+
+  activeTabText: {
+    fontWeight: "bold",
+    fontSize: 14,
+    color: "text-primary-color",
+  } as TextStyle,
+
+  // Category styles
   categoryList: {
     flex: 1,
     width: "100%",
   } as ViewStyle,
+
   categoryListContainer: {
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 16,
+    paddingBottom: 100,
   } as ViewStyle,
+
   categoryCard: {
-    marginBottom: 12,
-    borderRadius: 8,
-    elevation: 2,
+    marginBottom: 16,
+    borderRadius: 16,
+    padding: 4,
+    elevation: 4,
+    shadowColor: "rgba(0, 0, 0, 0.15)",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    backgroundColor: "background-basic-color-1",
+    borderWidth: 0,
+    overflow: "hidden",
   } as ViewStyle,
+
+  cardGradient: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  } as ViewStyle,
+
   categoryCardContent: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 4,
+    padding: 12,
   } as ViewStyle,
+
+  categoryIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "color-primary-100",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  } as ViewStyle,
+
+  categoryIcon: {
+    width: 20,
+    height: 20,
+  } as ViewStyle,
+
   categoryName: {
-    marginLeft: 12,
-    fontWeight: "500",
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "600",
+    color: "text-basic-color",
   } as TextStyle,
+
+  editIcon: {
+    width: 20,
+    height: 20,
+  } as ViewStyle,
+
+  // Empty state styles
+  emptyCategoryContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+  } as ViewStyle,
+
+  emptyStateIcon: {
+    width: 80,
+    height: 80,
+    opacity: 0.5,
+    marginBottom: 16,
+  } as ViewStyle,
+
+  emptyStateText: {
+    textAlign: "center",
+    fontSize: 16,
+    color: "text-hint-color",
+    marginBottom: 24,
+  } as TextStyle,
+
+  createFirstCategoryButton: {
+    borderRadius: 24,
+    paddingHorizontal: 20,
+  } as ViewStyle,
+
+  // Product screen styles
+  productScreenContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "background-basic-color-1",
+  } as ViewStyle,
+
+  categoryScreenContainer: {
+    flex: 1,
+    backgroundColor: "background-basic-color-1",
+  } as ViewStyle,
+
+  // Floating action button
+  floatingActionIcon: {
+    width: 26,
+    height: 26,
+  } as ViewStyle,
+
+  // Various helpers
+  searchInput: {
+    margin: 16,
+    borderRadius: 24,
+    backgroundColor: "background-basic-color-1",
+    borderColor: "border-basic-color-3",
+  } as ViewStyle,
+
   icon: {
     width: 24,
     height: 24,
   } as ViewStyle,
-  emptyStateText: {
-    textAlign: "center",
-    marginTop: 40,
-    opacity: 0.6,
-  } as TextStyle,
-  // Thêm các thuộc tính bị thiếu
+
   list: {
     width: "100%",
   } as ViewStyle,
+
   listContainer: {
     flex: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     paddingBottom: 100,
-  } as ViewStyle,
-  topTabBar: {
-    height: 50,
   } as ViewStyle,
 });
 

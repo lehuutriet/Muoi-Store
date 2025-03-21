@@ -89,7 +89,6 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
   const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
   const [todayRevenue, setTodayRevenue] = useState(0);
   const [todayOrders, setTodayOrders] = useState(0);
-  const [unpaidOrders, setUnpaidOrders] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [greeting, setGreeting] = useState("");
   const animatedValue = useSharedValue(0);
@@ -147,11 +146,6 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
         Query.lessThanEqual("$createdAt", todayEnd.toISOString()),
       ]);
 
-      // Lấy đơn hàng chưa thanh toán
-      const unpaidOrdersData = await getAllItem(COLLECTION_IDS.orders, [
-        Query.equal("status", "unpaid"),
-      ]);
-
       // Tính doanh thu ngày hôm nay (chỉ từ các đơn đã thanh toán)
       let revenue = 0;
       let completedOrders = 0;
@@ -165,7 +159,6 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
 
       setTodayRevenue(revenue);
       setTodayOrders(todayOrdersData.length);
-      setUnpaidOrders(unpaidOrdersData.length);
     } catch (error) {
       console.error("Error fetching today's data:", error);
     }
@@ -301,70 +294,70 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
             entering={FadeInDown.delay(200)}
             style={[styles.statsContainer as ViewStyle, animatedStyle]}
           >
-            <Card style={[styles.statCard, styles.revenueCard] as ViewStyle[]}>
-              <View style={styles.statCardContent as ViewStyle}>
-                <Icon
-                  name="trending-up-outline"
-                  fill="#2F80ED"
-                  style={styles.statIcon as ViewStyle}
-                />
-                <View>
-                  <Text category="c1" style={styles.statLabel as TextStyle}>
-                    {t("today_revenue1")}
-                  </Text>
-                  <Text
-                    category="h6"
-                    style={
-                      [
-                        styles.statValue,
-                        { fontSize: 14 },
-                      ] as unknown as TextStyle
-                    }
-                    numberOfLines={2}
-                  >
-                    {new Intl.NumberFormat("vi-VN", {
-                      maximumFractionDigits: 0,
-                    }).format(todayRevenue) + "đ"}
-                  </Text>
+            {/* Thêm TouchableOpacity bao quanh Card doanh thu */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              style={{ width: (width - 35) / 2 }}
+            >
+              <Card
+                style={[styles.statCard, styles.revenueCard] as ViewStyle[]}
+                onPress={() => navigation.navigate("StatisticScreen")}
+              >
+                <View style={styles.statCardContent as ViewStyle}>
+                  <Icon
+                    name="trending-up-outline"
+                    fill="#2F80ED"
+                    style={styles.statIcon as ViewStyle}
+                  />
+                  <View>
+                    <Text category="c1" style={styles.statLabel as TextStyle}>
+                      {t("today_revenue1")}
+                    </Text>
+                    <Text
+                      category="h6"
+                      style={
+                        [
+                          styles.statValue,
+                          { fontSize: 14 },
+                        ] as unknown as TextStyle
+                      }
+                      numberOfLines={2}
+                    >
+                      {new Intl.NumberFormat("vi-VN", {
+                        maximumFractionDigits: 0,
+                      }).format(todayRevenue) + "đ"}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            </Card>
+              </Card>
+            </TouchableOpacity>
 
-            <Card style={[styles.statCard, styles.ordersCard] as ViewStyle[]}>
-              <View style={styles.statCardContent as ViewStyle}>
-                <Icon
-                  name="shopping-bag-outline"
-                  fill="#FF9800"
-                  style={styles.statIcon as ViewStyle}
-                />
-                <View>
-                  <Text category="c1" style={styles.statLabel as TextStyle}>
-                    {t("today_orders1")}
-                  </Text>
-                  <Text category="h6" style={styles.statValue as TextStyle}>
-                    {todayOrders}
-                  </Text>
+            {/* Thêm TouchableOpacity bao quanh Card đơn hàng */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              style={{ width: (width - 35) / 2 }}
+            >
+              <Card
+                style={[styles.statCard, styles.ordersCard] as ViewStyle[]}
+                onPress={() => navigation.navigate("ManageOrderScreen")}
+              >
+                <View style={styles.statCardContent as ViewStyle}>
+                  <Icon
+                    name="shopping-bag-outline"
+                    fill="#FF9800"
+                    style={styles.statIcon as ViewStyle}
+                  />
+                  <View>
+                    <Text category="c1" style={styles.statLabel as TextStyle}>
+                      {t("today_orders1")}
+                    </Text>
+                    <Text category="h6" style={styles.statValue as TextStyle}>
+                      {todayOrders}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            </Card>
-
-            <Card style={[styles.statCard, styles.unpaidCard] as ViewStyle[]}>
-              <View style={styles.statCardContent as ViewStyle}>
-                <Icon
-                  name="alert-triangle-outline"
-                  fill="#F2994A"
-                  style={styles.statIcon as ViewStyle}
-                />
-                <View>
-                  <Text category="c1" style={styles.statLabel as TextStyle}>
-                    {t("unpaid_orders1")}
-                  </Text>
-                  <Text category="h6" style={styles.statValue as TextStyle}>
-                    {unpaidOrders}
-                  </Text>
-                </View>
-              </View>
-            </Card>
+              </Card>
+            </TouchableOpacity>
           </Animated.View>
 
           {/* Main Features Grid */}
@@ -473,7 +466,7 @@ const styleSheet = StyleService.create({
     marginBottom: 24,
   },
   statCard: {
-    width: (width - 35) / 3,
+    width: "100%", // Điều chỉnh để card chiếm toàn bộ chiều rộng của TouchableOpacity
     borderRadius: 12,
     padding: 1,
     height: 130, // Tăng chiều cao của card
@@ -496,9 +489,6 @@ const styleSheet = StyleService.create({
   },
   ordersCard: {
     backgroundColor: "#FFF3E0",
-  },
-  unpaidCard: {
-    backgroundColor: "#FBE9E7",
   },
   statCardContent: {
     alignItems: "center",

@@ -478,5 +478,11 @@
   "need_more_required_products" : "Cần thêm sản phẩm yêu cầu",
   "product_not_in_order" : "Sản phẩm không có trong đơn hàng",
   "need_all_combo_products" : "Cần tất cả sản phẩm trong combo",
-  "promotion_applied_successfully" : "Khuyến mãi đã được áp dụng thành công"
+  "promotion_applied_successfully" : "Khuyến mãi đã được áp dụng thành công",
+  "no_products_in_order" : "Không có sản phẩm nào trong đơn hàng",
+  "product_details" : "Chi tiết sản phẩm",
+  "gallery" : "Thư viện",
+  "manage_categories" : "Quản lý danh mục",
+  "manage_products" : "Quản lý sản phẩm",
+  "items_selected":"sản phẩm đã chọn"
 } 

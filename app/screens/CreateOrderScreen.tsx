@@ -7,6 +7,7 @@ import {
   Alert,
   ViewStyle,
   TextStyle,
+  ImageStyle,
 } from "react-native";
 
 import React, { useCallback, useEffect, useState } from "react";
@@ -17,6 +18,9 @@ import {
   useStyleSheet,
   Layout,
   Icon,
+  TopNavigation,
+  TopNavigationAction,
+  Divider,
 } from "@ui-kitten/components";
 import { useTranslation } from "react-i18next";
 import {
@@ -37,6 +41,7 @@ import {
 import { currentOrderAtom } from "../states/orderState";
 import { RouteProp } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
+
 // Định nghĩa interfaces cho các order item
 interface OrderItem {
   price: number;
@@ -79,12 +84,8 @@ interface Order {
   date: Date;
   order: OrderItem[];
 }
-// Định nghĩa interface cho style
-interface OrderStyles {
-  container: ViewStyle;
-  bottomBtn: ViewStyle;
-  btnType: ViewStyle;
-}
+
+const { width } = Dimensions.get("window");
 
 const CheckoutButton = (): React.ReactElement => {
   const styles = useStyleSheet(styleSheet);
@@ -104,55 +105,54 @@ const CheckoutButton = (): React.ReactElement => {
   }, [order.order]);
 
   return (
-    <Layout level="1" style={styles.bottomBtn as ViewStyle}>
-      <View style={styles.btnType as ViewStyle}>
-        <View
-          style={{ paddingLeft: 20, display: "flex", flexDirection: "row" }}
-        >
-          <Icon
-            style={{ width: 20, height: 20 }}
-            fill="white"
-            name="briefcase-outline"
-          />
-
-          <Text appearance="alternative" style={{ paddingLeft: 20 }}>
-            {Intl.NumberFormat("en-US", {
-              style: "currency",
-              currency: "VND",
-            }).format(totalPrice)}
-          </Text>
-        </View>
-      </View>
-      <View>
-        <Text
-          onPress={() => {
-            if (order.order.length > 0) {
-              RootNavigation.navigate("ReviewOrderScreen");
-            } else {
-              Alert.alert(
-                t(""),
-                t("order_empty"),
-                [
-                  {
-                    text: t("ok"),
-                    style: "default",
-                  },
-                ],
-                {
-                  cancelable: true,
-                }
-              );
-            }
-          }}
-          appearance="alternative"
-          style={{ paddingRight: 20, fontWeight: "bold" }}
-        >
-          {t("continue")}
-        </Text>
-      </View>
-    </Layout>
+    <View style={styles.bottomBtnContainer as ViewStyle}>
+      <Button
+        style={styles.checkoutButton as ViewStyle}
+        status="primary"
+        size="large"
+        accessoryLeft={(props) => (
+          <Icon {...props} name="shopping-cart-outline" />
+        )}
+        accessoryRight={() => (
+          <View style={styles.priceContainer as ViewStyle}>
+            <Text
+              style={styles.priceText as TextStyle}
+              category="s1"
+              appearance="alternative"
+            >
+              {Intl.NumberFormat("vi-VN", {
+                style: "currency",
+                currency: "VND",
+                maximumFractionDigits: 0,
+              }).format(totalPrice)}
+            </Text>
+            <Icon
+              name="arrow-forward"
+              fill="white"
+              style={styles.arrowIcon as ImageStyle}
+            />
+          </View>
+        )}
+        onPress={() => {
+          if (order.order.length > 0) {
+            RootNavigation.navigate("ReviewOrderScreen");
+          } else {
+            Alert.alert(
+              t(""),
+              t("order_empty"),
+              [{ text: t("ok"), style: "default" }],
+              { cancelable: true }
+            );
+          }
+        }}
+      >
+        {t("checkout")}
+      </Button>
+    </View>
   );
 };
+
+const BackIcon = (props: any) => <Icon {...props} name="arrow-back" />;
 
 const CreateOrderScreen = ({ route, navigation }: CreateOrderScreenProps) => {
   const styles = useStyleSheet(styleSheet);
@@ -161,6 +161,7 @@ const CreateOrderScreen = ({ route, navigation }: CreateOrderScreenProps) => {
 
   const productData = useRecoilValue<Product[]>(allProductsAtom);
   const resetOrder = useResetRecoilState(currentOrderAtom);
+  const [order, setOrder] = useRecoilState<Order>(currentOrderAtom);
 
   // Reset Product List
   const resetProductList = useRecoilCallback(
@@ -180,57 +181,133 @@ const CreateOrderScreen = ({ route, navigation }: CreateOrderScreenProps) => {
       route.params.method === "create"
     ) {
       resetProductList();
-
-      // reset product list when new order is selected
       resetOrder();
     }
-    // if (route.params.method === "edit") {
-
-    // }
     return () => {
       // cleanup
     };
   }, [route.params, resetProductList, resetOrder]);
 
+  const navigateBack = () => {
+    navigation.goBack();
+  };
+
+  const BackAction = () => (
+    <TopNavigationAction icon={BackIcon} onPress={navigateBack} />
+  );
+
   return (
-    <Layout level="1" style={styles.container as ViewStyle}>
-      <CategoryScrollbar
-        selectedCategory={selectedCategory}
-        setSelectedCategory={setSelectedCategory}
-      />
-      <ProductList
-        screen="order"
-        editable={false}
-        category={selectedCategory}
-      />
+    <Layout style={styles.container as ViewStyle}>
+      <View style={styles.categoryContainer as ViewStyle}>
+        <CategoryScrollbar
+          selectedCategory={selectedCategory}
+          setSelectedCategory={setSelectedCategory}
+        />
+      </View>
+
+      <View style={styles.productListContainer as ViewStyle}>
+        <ProductList
+          screen="order"
+          editable={false}
+          category={selectedCategory}
+        />
+      </View>
+
+      {/* Cart Summary */}
+      {order.order.length > 0 && (
+        <View style={styles.cartSummaryContainer as ViewStyle}>
+          <View style={styles.cartSummary as ViewStyle}>
+            <Icon
+              name="shopping-cart"
+              fill="#3366FF"
+              style={styles.cartIcon as ImageStyle}
+            />
+            <Text category="s1">
+              {order.order.length} {t("items_selected")}
+            </Text>
+          </View>
+        </View>
+      )}
+
       <CheckoutButton />
     </Layout>
   );
 };
 
-const styleSheet = StyleService.create<OrderStyles>({
+const styleSheet = StyleService.create({
   container: {
     flex: 1,
-    width: "100%",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: "background-basic-color-1",
   },
-  bottomBtn: {
+
+  // Category container
+  categoryContainer: {
+    backgroundColor: "background-basic-color-1",
+    borderBottomWidth: 1,
+    borderBottomColor: "border-basic-color-3",
+    zIndex: 10,
+  },
+
+  // Product list container
+  productListContainer: {
+    flex: 1,
+    paddingBottom: 80,
+  },
+
+  // Cart summary
+  cartSummaryContainer: {
     position: "absolute",
-    justifyContent: "space-between",
+    top: 130, // Adjust based on your header + category selector height
+    left: 0,
+    right: 0,
     alignItems: "center",
-    display: "flex",
-    flexDirection: "row",
-    backgroundColor: "color-primary-900",
-    margin: 15,
-    width: Dimensions.get("window").width - 30,
-    height: 60,
-    bottom: 0,
-    borderRadius: 5,
+    zIndex: 99,
   },
-  btnType: {
-    display: "flex",
+  cartSummary: {
     flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "color-primary-100",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 24,
+    shadowColor: "rgba(0, 0, 0, 0.1)",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  cartIcon: {
+    width: 18,
+    height: 18,
+    marginRight: 8,
+  },
+
+  // Checkout button
+  bottomBtnContainer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+    backgroundColor: "background-basic-color-1",
+    borderTopWidth: 1,
+    borderTopColor: "border-basic-color-3",
+  },
+  checkoutButton: {
+    borderRadius: 8,
+  },
+  priceContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  priceText: {
+    color: "white",
+    fontWeight: "bold",
+    marginRight: 8,
+  },
+  arrowIcon: {
+    width: 20,
+    height: 20,
   },
 });
 

@@ -69,16 +69,6 @@ const CategoryList: React.FC<CategoryListProps> = ({ data }) => {
       />
     </Card>
   );
-
-  return (
-    <List
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      data={data}
-      renderItem={renderItem}
-      numColumns={3}
-    />
-  );
 };
 const styleSheet = StyleService.create({
   container: {

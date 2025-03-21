@@ -7,6 +7,7 @@ import {
   ViewStyle,
   ImageStyle,
   TextStyle,
+  ScrollView,
 } from "react-native";
 
 import {
@@ -41,7 +42,6 @@ type ImagePickerResult = ImagePicker.ImagePickerResult & {
 };
 
 const vndMask = createNumberMask({
-  // prefix: ['đ'],
   delimiter: ",",
   separator: ",",
   precision: 3,
@@ -59,8 +59,8 @@ type RootStackParamList = {
       cost?: number;
       description?: string;
       category?: string;
-      stock?: number; // Thêm trường này
-      minStock?: number; // Thêm trường này
+      stock?: number;
+      minStock?: number;
     };
   };
 };
@@ -111,8 +111,8 @@ const CreateProductScreen = ({
     price: number;
     cost: number;
     category: string;
-    stock: number; // Thêm trường này
-    minStock: number; // Thêm trường này
+    stock: number;
+    minStock: number;
     description: string;
   }
   const [categories] = useRecoilState<Category[]>(allCategoryAtom);
@@ -219,7 +219,7 @@ const CreateProductScreen = ({
         setSelectedCategoryIndex(new IndexPath(index));
       }
     }
-  }, []); // Bỏ photoID ra khỏi dependencies để tránh vòng lặp useEffect
+  }, []);
 
   const handleTakePhotoFromCamera = async () => {
     // No permissions request is necessary for launching the image library
@@ -256,16 +256,11 @@ const CreateProductScreen = ({
       [
         {
           text: "Ok",
-          // onPress: () => Alert.alert('Cancel Pressed'),
           style: "cancel",
         },
       ],
       {
         cancelable: true,
-        // onDismiss: () =>
-        //   Alert.alert(
-        //     'This alert was dismissed by tapping outside of the alert dialog.',
-        //   ),
       }
     );
 
@@ -278,7 +273,6 @@ const CreateProductScreen = ({
           const ids = [];
           for (const product of productData) {
             ids.push(product.$id);
-            // Cập nhật từng product trong atom family
             set(productAtomFamily(product.$id), product);
           }
           set(productIdsAtom, ids);
@@ -289,9 +283,8 @@ const CreateProductScreen = ({
     []
   );
   useEffect(() => {
-    // Refresh data khi component mount
     refreshProductList();
-  }, []); // Chạy 1 lần khi component mount
+  }, []);
   const onReset = async () => {
     setRequired(false);
     setPhotoID(null);
@@ -345,7 +338,6 @@ const CreateProductScreen = ({
       }
 
       // Tạo dữ liệu sản phẩm với photoID đã xác nhận
-      // Khi tạo dữ liệu sản phẩm
       let data: any = {
         name: name.trim(),
         price: parseFloat((price ?? "0").replace(/\D/g, "")),
@@ -361,17 +353,14 @@ const CreateProductScreen = ({
       };
 
       // Thêm trường photoUrl vào data trước khi lưu
-      // Trong hàm onCreate
       if (newPhotoID) {
         const photoUrl = await getFileView(newPhotoID);
         if (photoUrl) {
-          // Lưu chỉ fileID thay vì toàn bộ URL
           data.photoUrl = newPhotoID;
         }
       }
 
       if (newPhotoID && typeof newPhotoID === "string") {
-        // Lưu toàn bộ ID
         data.photo = newPhotoID;
       } else {
         data.photo = "";
@@ -447,218 +436,246 @@ const CreateProductScreen = ({
     }
   };
 
-  //
   return (
-    <Layout level="1" style={{ height: Dimensions.get("window").height - 50 }}>
-      {/* upload photo */}
-      <Layout level="2" style={styles.photoLayout as ViewStyle}>
-        <View>
-          <Button
-            style={[styles.button, { marginBottom: 5 }] as ViewStyle[]}
-            status="primary"
-            appearance="outline"
-            size="small"
-            accessoryLeft={() => (
-              <Icon
-                style={styles.icon}
-                fill={theme["color-primary-500"]}
-                name="image"
+    <Layout level="1" style={{ flex: 1 }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 80 }}
+      >
+        {/* Phần ảnh */}
+        <View style={styles.photoSection as ViewStyle}>
+          <View style={styles.photoPreviewContainer as ViewStyle}>
+            {photo && (
+              <Image
+                source={{ uri: photo.uri }}
+                style={styles.photoPreview as ImageStyle}
               />
             )}
-            onPress={handleChoosePhotoFromLibrary}
-          >
-            {t("upload_photo")}
-          </Button>
-
-          <Button
-            style={styles.button as ViewStyle}
-            status="primary"
-            appearance="outline"
-            size="small"
-            accessoryLeft={() => (
-              <Icon
-                style={styles.icon}
-                fill={theme["color-primary-500"]}
-                name="camera"
-              />
-            )}
-            onPress={handleTakePhotoFromCamera}
-          >
-            {t("camera")}
-          </Button>
+          </View>
+          <View style={styles.photoButtonsContainer as ViewStyle}>
+            <Button
+              style={styles.photoButton as ViewStyle}
+              status="primary"
+              size="small"
+              accessoryLeft={(props) => <Icon {...props} name="image" />}
+              onPress={handleChoosePhotoFromLibrary}
+            >
+              {t("gallery")}
+            </Button>
+            <Button
+              style={styles.photoButton as ViewStyle}
+              status="info"
+              size="small"
+              accessoryLeft={(props) => <Icon {...props} name="camera" />}
+              onPress={handleTakePhotoFromCamera}
+            >
+              {t("camera")}
+            </Button>
+          </View>
         </View>
-        <View style={{ paddingLeft: 10 }}>
-          {photo && (
-            <Image
-              source={{ uri: photo.uri }}
-              style={styles.photo as ImageStyle}
-            />
-          )}
-        </View>
-      </Layout>
 
-      <Layout level="1" style={styles.productInfo as ViewStyle}>
-        {/* product name */}
-        <Input
-          style={styles.input as TextStyle}
-          value={name}
-          label={t("product_name")}
-          placeholder={t("product_example")}
-          caption={() => (required && !name ? requiredText() : <></>)}
-          onChangeText={(nextValue) => setName(nextValue)}
-        />
-        {/* product description */}
-        <Input
-          style={styles.input as any}
-          value={description}
-          label={t("product_description")}
-          placeholder=""
-          // caption={() => (required && !description ? requiredText() : <></>)}
-          // accessoryRight={renderIcon}
-          // secureTextEntry={secureTextEntry}
-          onChangeText={(nextValue) => setDescription(nextValue)}
-        />
-        <Layout level="1" style={styles.price as ViewStyle}>
-          {/* Hàng 1: price và cost */}
-          <Input
-            {...useMaskedInputProps({
-              value: price || "",
-              onChangeText: (masked, unmasked) => setPrice(unmasked),
-              mask: vndMask,
-            })}
-            style={[
-              styles.input as TextStyle,
-              {
-                paddingRight: 10,
-                width: Dimensions.get("screen").width / 2 - 10,
-              },
-            ]}
-            inputMode="numeric"
-            label={t("price")}
-            placeholder="0.000"
-            caption={() => (required && !price ? requiredText() : <></>)}
-          />
-          <Input
-            {...useMaskedInputProps({
-              value: cost || "",
-              onChangeText: (masked, unmasked) => setCost(unmasked),
-              mask: vndMask,
-            })}
-            style={[
-              styles.input as TextStyle,
-              { width: Dimensions.get("screen").width / 2 - 10 },
-            ]}
-            inputMode="numeric"
-            label={t("cost")}
-            placeholder="0.000"
-            onChangeText={(nextValue) => setCost(nextValue)}
-          />
-        </Layout>
-
-        {/* Thêm một Layout mới cho stock và minStock */}
-        <Layout level="1" style={styles.price as ViewStyle}>
-          <Input
-            {...useMaskedInputProps({
-              value: stock || "",
-              onChangeText: (masked, unmasked) => setStock(unmasked),
-              mask: vndMask,
-            })}
-            style={[
-              styles.input as TextStyle,
-              {
-                paddingRight: 10,
-                width: Dimensions.get("screen").width / 2 - 10,
-              },
-            ]}
-            inputMode="numeric"
-            label={t("stock")}
-            placeholder="0"
-            caption={() => (required && !stock ? requiredText() : <></>)}
-          />
-          <Input
-            {...useMaskedInputProps({
-              value: minStock || "",
-              onChangeText: (masked, unmasked) => setMinStock(unmasked),
-              mask: vndMask,
-            })}
-            style={[
-              styles.input as TextStyle,
-              { width: Dimensions.get("screen").width / 2 - 10 },
-            ]}
-            inputMode="numeric"
-            label={t("min_stock")}
-            placeholder="0"
-          />
-        </Layout>
-        {/* product categories */}
-        <View>
-          <Text style={{ color: theme["color-basic-600"], fontWeight: "bold" }}>
-            {t("category")}
+        {/* Thông tin sản phẩm */}
+        <Card style={styles.formCard as ViewStyle}>
+          <Text category="h6" style={styles.formTitle as TextStyle}>
+            {t("product_details")}
           </Text>
-          <Select
-            placeholder={t("no_category")}
-            value={
-              categories.length > 0
-                ? selectedCategoryIndex.row > 0
-                  ? categories[selectedCategoryIndex.row - 1].name
-                  : t("choose_category")
-                : ""
+
+          {/* Tên sản phẩm */}
+          <Input
+            style={styles.input as TextStyle}
+            value={name}
+            label={
+              <Text style={styles.inputLabel as TextStyle}>
+                {t("product_name")} <Text status="danger">*</Text>
+              </Text>
             }
-            selectedIndex={selectedCategoryIndex}
-            onSelect={(index: IndexPath | IndexPath[]) => {
-              if (index instanceof IndexPath) {
-                setSelectedCategoryIndex(index);
+            placeholder={t("product_example")}
+            caption={() => (required && !name ? requiredText() : <></>)}
+            onChangeText={(nextValue) => setName(nextValue)}
+            status={required && !name ? "danger" : "basic"}
+          />
+
+          {/* Mô tả sản phẩm */}
+          <Input
+            style={styles.textArea as TextStyle}
+            value={description}
+            label={
+              <Text style={styles.inputLabel as TextStyle}>
+                {t("product_description")}
+              </Text>
+            }
+            placeholder={t("enter_description")}
+            multiline={true}
+            textStyle={{ minHeight: 80 }}
+            onChangeText={(nextValue) => setDescription(nextValue)}
+          />
+
+          {/* Giá và chi phí */}
+          <View style={styles.rowContainer as ViewStyle}>
+            <Input
+              {...useMaskedInputProps({
+                value: price || "",
+                onChangeText: (masked, unmasked) => setPrice(unmasked),
+                mask: vndMask,
+              })}
+              style={styles.halfInput as TextStyle}
+              inputMode="numeric"
+              label={
+                <Text style={styles.inputLabel as TextStyle}>
+                  {t("price")} <Text status="danger">*</Text>
+                </Text>
               }
-            }}
-            multiSelect={false} // Thêm dòng này để chỉ định rằng chỉ chọn một mục
-          >
-            {categories.length > 0 ? (
-              [{ name: t("choose_category"), $id: "0" }]
-                .concat(categories)
-                .map((category) => (
-                  <SelectItem title={category.name} key={category.$id} />
-                ))
-            ) : (
-              <></>
-            )}
-          </Select>
-        </View>
-      </Layout>
-      {/* function button */}
+              placeholder="0.000"
+              caption={() => (required && !price ? requiredText() : <></>)}
+              status={required && !price ? "danger" : "basic"}
+              accessoryLeft={(props) => (
+                <Icon {...props} name="pricetags-outline" />
+              )}
+            />
+
+            <Input
+              {...useMaskedInputProps({
+                value: cost || "",
+                onChangeText: (masked, unmasked) => setCost(unmasked),
+                mask: vndMask,
+              })}
+              style={styles.halfInput as TextStyle}
+              inputMode="numeric"
+              label={
+                <Text style={styles.inputLabel as TextStyle}>{t("cost")}</Text>
+              }
+              placeholder="0.000"
+              accessoryLeft={(props) => (
+                <Icon {...props} name="shopping-bag-outline" />
+              )}
+            />
+          </View>
+
+          {/* Tồn kho và ngưỡng */}
+          <View style={styles.rowContainer as ViewStyle}>
+            <Input
+              {...useMaskedInputProps({
+                value: stock || "",
+                onChangeText: (masked, unmasked) => setStock(unmasked),
+                mask: vndMask,
+              })}
+              style={styles.halfInput as TextStyle}
+              inputMode="numeric"
+              label={
+                <Text style={styles.inputLabel as TextStyle}>{t("stock")}</Text>
+              }
+              placeholder="0"
+              accessoryLeft={(props) => (
+                <Icon {...props} name="archive-outline" />
+              )}
+            />
+
+            <Input
+              {...useMaskedInputProps({
+                value: minStock || "",
+                onChangeText: (masked, unmasked) => setMinStock(unmasked),
+                mask: vndMask,
+              })}
+              style={styles.halfInput as TextStyle}
+              inputMode="numeric"
+              label={
+                <Text style={styles.inputLabel as TextStyle}>
+                  {t("min_stock")}
+                </Text>
+              }
+              placeholder="0"
+              accessoryLeft={(props) => (
+                <Icon {...props} name="alert-triangle-outline" />
+              )}
+            />
+          </View>
+
+          {/* Danh mục */}
+          <View style={styles.categoryContainer as ViewStyle}>
+            <Text style={styles.inputLabel as TextStyle}>
+              {t("category")} <Text status="danger">*</Text>
+            </Text>
+            <Select
+              style={styles.categorySelect as ViewStyle}
+              placeholder={t("choose_category")}
+              value={
+                categories.length > 0
+                  ? selectedCategoryIndex.row > 0
+                    ? categories[selectedCategoryIndex.row - 1].name
+                    : t("choose_category")
+                  : ""
+              }
+              selectedIndex={selectedCategoryIndex}
+              onSelect={(index: IndexPath | IndexPath[]) => {
+                if (index instanceof IndexPath) {
+                  setSelectedCategoryIndex(index);
+                }
+              }}
+              status={
+                required && selectedCategoryIndex.row === 0 ? "danger" : "basic"
+              }
+              multiSelect={false}
+            >
+              {categories.length > 0 ? (
+                [{ name: t("choose_category"), $id: "0" }]
+                  .concat(categories)
+                  .map((category) => (
+                    <SelectItem title={category.name} key={category.$id} />
+                  ))
+              ) : (
+                <></>
+              )}
+            </Select>
+            {required && selectedCategoryIndex.row === 0 && requiredText()}
+          </View>
+        </Card>
+      </ScrollView>
+
+      {/* Nút chức năng */}
       {route.params.method === "create" ? (
-        <Layout level="1" style={styles.buttons as ViewStyle}>
+        <View style={styles.buttonContainer as ViewStyle}>
           <Button
-            style={{ flex: 1, marginRight: 5, borderWidth: 0 }}
+            style={styles.createMoreButton as ViewStyle}
             appearance="outline"
             status="primary"
+            accessoryLeft={(props) => <Icon {...props} name="plus-outline" />}
             onPress={() => onCreate("create", false)}
           >
             {t("create_more")}
           </Button>
           <Button
-            style={{ flex: 1, marginLeft: 5 }}
+            style={styles.doneButton as ViewStyle}
+            status="primary"
+            accessoryLeft={(props) => (
+              <Icon {...props} name="checkmark-outline" />
+            )}
             onPress={() => onCreate("create")}
           >
             {t("done")}
           </Button>
-        </Layout>
+        </View>
       ) : (
-        <Layout level="1" style={styles.buttons as ViewStyle}>
+        <View style={styles.buttonContainer as ViewStyle}>
           <Button
-            style={{ flex: 1, marginRight: 5, borderWidth: 0 }}
+            style={styles.deleteButton as ViewStyle}
             appearance="outline"
             status="danger"
+            accessoryLeft={(props) => (
+              <Icon {...props} name="trash-2-outline" />
+            )}
             onPress={() => onDelete()}
           >
             {t("delete")}
           </Button>
           <Button
-            style={{ flex: 1, marginLeft: 5 }}
+            style={styles.updateButton as ViewStyle}
+            status="primary"
+            accessoryLeft={(props) => <Icon {...props} name="save-outline" />}
             onPress={() => onCreate("update")}
           >
             {t("update")}
           </Button>
-        </Layout>
+        </View>
       )}
       <WaitingModal waiting={waiting} />
     </Layout>
@@ -666,60 +683,121 @@ const CreateProductScreen = ({
 };
 
 const styleSheet = StyleService.create({
-  photoLayout: {
-    justifyContent: "flex-start",
-    alignItems: "center",
-    flexDirection: "row",
-    flexWrap: "wrap",
-    width: "100%",
-    padding: 10,
-    // paddingHorizontal: 20,
-  },
-  button: {
-    backgroundColor: "white",
-  },
-  detail: {
-    flexDirection: "row",
-    display: "flex",
-    width: Dimensions.get("window").width - 100,
-  },
-  productInfo: {
-    width: "100%",
+  container: {
     flex: 1,
-    // height: Dimensions.get("window").height,
-    padding: 10,
+    backgroundColor: "#f8f9fa",
   },
-  price: {
-    flexDirection: "row",
-    display: "flex",
+  scrollView: {
+    flex: 1,
+    paddingBottom: 80,
+  },
+  photoSection: {
+    backgroundColor: "white",
+    padding: 16,
+    marginBottom: 16,
+  },
+  photoPreviewContainer: {
+    alignSelf: "center",
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    overflow: "hidden",
+    marginBottom: 16,
+    backgroundColor: "#e9ecef",
+    borderWidth: 2,
+    borderColor: "#dee2e6",
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  photoPreview: {
     width: "100%",
-    // width: 50,
-    // backgroundColor: "red",
-  },
-  photo: {
-    width: 80,
-    height: 80,
-    borderRadius: 5,
+    height: "100%",
+    borderRadius: 75,
   } as ImageStyle,
-  icon: {
-    width: 20,
-    height: 20,
+  photoButtonsContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  photoButton: {
+    margin: 8,
+    borderRadius: 20,
+  },
+  formCard: {
+    margin: 16,
+    borderRadius: 10,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  formTitle: {
+    textAlign: "center",
+    marginBottom: 16,
+    color: "color-primary-600",
+  },
+  inputLabel: {
+    marginBottom: 4,
+    fontSize: 14,
+    fontWeight: "bold",
   },
   input: {
-    paddingBottom: 10,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-    borderTopWidth: 0,
-    backgroundColor: "white",
-    borderRadius: 0,
+    marginBottom: 16,
+    borderRadius: 6,
   },
-
-  buttons: {
-    display: "flex",
+  textArea: {
+    marginBottom: 16,
+    borderRadius: 6,
+  },
+  rowContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  halfInput: {
+    width: "48%",
+    borderRadius: 6,
+  },
+  categoryContainer: {
+    marginBottom: 16,
+  },
+  categorySelect: {
+    borderRadius: 6,
+  },
+  buttonContainer: {
     flexDirection: "row",
     position: "absolute",
-    bottom: 30,
-    padding: 10,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+    backgroundColor: "white",
+    borderTopWidth: 1,
+    borderTopColor: "#e9ecef",
+    elevation: 5,
+  },
+  createMoreButton: {
+    flex: 1,
+    marginRight: 8,
+    borderRadius: 30,
+  },
+  doneButton: {
+    flex: 1,
+    marginLeft: 8,
+    borderRadius: 30,
+  },
+  deleteButton: {
+    flex: 1,
+    marginRight: 8,
+    borderRadius: 30,
+  },
+  updateButton: {
+    flex: 1,
+    marginLeft: 8,
+    borderRadius: 30,
   },
 });
 
