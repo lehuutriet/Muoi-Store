@@ -1106,7 +1106,16 @@ const StatisticScreen = () => {
                   <Text category="label" style={styles.statLabel as TextStyle}>
                     {t("total_revenue")}
                   </Text>
-                  <Text category="h4" style={styles.statValue as TextStyle}>
+                  <Text
+                    category="h4"
+                    style={
+                      {
+                        ...styles.statValue,
+                        textAlign: "center",
+                        width: "100%",
+                      } as StyleProp<TextStyle>
+                    }
+                  >
                     {Intl.NumberFormat("vi-VN", {
                       style: "currency",
                       currency: "VND",
@@ -1721,6 +1730,8 @@ const styleSheet = StyleService.create({
   statValue: {
     color: "text-basic-color",
     fontSize: 18,
+    textAlign: "center", // Thêm thuộc tính này
+    width: "100%", // Đảm bảo text chiếm toàn bộ chiều rộng của container
   },
   orderStats: {
     marginTop: 8,

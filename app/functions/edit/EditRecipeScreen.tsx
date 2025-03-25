@@ -16,7 +16,7 @@ import {
   useStyleSheet,
   useTheme,
 } from "@ui-kitten/components";
-import { useDatabases, COLLECTION_IDS } from "../hook/AppWrite";
+import { useDatabases, COLLECTION_IDS } from "../../hook/AppWrite";
 import { useTranslation } from "react-i18next";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RouteProp } from "@react-navigation/native";
@@ -41,37 +41,54 @@ interface Ingredient {
   quantity: number;
 }
 
-interface OutputProduct {
+interface Output {
   productId: string;
   name: string;
   quantity: number;
 }
 
+interface Recipe {
+  $id: string;
+  name: string;
+  description?: string;
+  ingredients: Ingredient[];
+  output: Output;
+}
+
+// Định nghĩa kiểu dữ liệu cho props
 type RootStackParamList = {
-  CreateRecipeScreen: undefined;
+  EditRecipeScreen: { recipe: Recipe };
+  // Thêm các màn hình khác nếu cần
 };
 
-type CreateRecipeScreenProps = {
-  navigation: StackNavigationProp<RootStackParamList, "CreateRecipeScreen">;
-  route: RouteProp<RootStackParamList, "CreateRecipeScreen">;
+type EditRecipeScreenProps = {
+  navigation: StackNavigationProp<RootStackParamList, "EditRecipeScreen">;
+  route: RouteProp<RootStackParamList, "EditRecipeScreen">;
 };
 
-const CreateRecipeScreen: React.FC<CreateRecipeScreenProps> = ({
+const EditRecipeScreen: React.FC<EditRecipeScreenProps> = ({
   navigation,
   route,
 }) => {
   const { t } = useTranslation();
-  const { getAllItem, createItem } = useDatabases();
+  const { getAllItem, updateItem, deleteItem } = useDatabases();
+  const { recipe } = route.params;
   const theme = useTheme();
   const styles = useStyleSheet(themedStyles);
 
   // State giữ nguyên
-  const [recipeName, setRecipeName] = useState("");
-  const [description, setDescription] = useState("");
-  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
-  const [outputProduct, setOutputProduct] = useState<Product | null>(null);
-  const [outputQuantity, setOutputQuantity] = useState("1");
-  const [isLoading, setIsLoading] = useState(false);
+  const [recipeName, setRecipeName] = useState(recipe.name || "");
+  const [description, setDescription] = useState(recipe.description || "");
+  const [ingredients, setIngredients] = useState<Ingredient[]>(
+    recipe.ingredients || []
+  );
+  const [outputProduct, setOutputProduct] = useState<Output>(
+    recipe.output || null
+  );
+  const [outputQuantity, setOutputQuantity] = useState(
+    (recipe.output?.quantity || 1).toString()
+  );
+
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedQuantity, setSelectedQuantity] = useState("1");
@@ -83,12 +100,15 @@ const CreateRecipeScreen: React.FC<CreateRecipeScreenProps> = ({
     IndexPath | undefined
   >(undefined);
 
+  const [isLoading, setIsLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Logic giữ nguyên
   useEffect(() => {
     loadWarehouseItems();
     loadProducts();
   }, []);
 
-  // Giữ nguyên logic
   const loadWarehouseItems = async () => {
     try {
       const items = await getAllItem(COLLECTION_IDS.warehouse);
@@ -139,7 +159,7 @@ const CreateRecipeScreen: React.FC<CreateRecipeScreenProps> = ({
     setIngredients(newIngredients);
   };
 
-  const saveRecipe = async () => {
+  const handleUpdateRecipe = async () => {
     if (!recipeName.trim()) {
       Alert.alert(t("error"), t("recipe_name_required"));
       return;
@@ -155,28 +175,73 @@ const CreateRecipeScreen: React.FC<CreateRecipeScreenProps> = ({
       return;
     }
 
+    setIsLoading(true);
+
     try {
       // Chuyển đổi danh sách nguyên liệu thành mảng chuỗi JSON
       const ingredientsArray = ingredients.map(
         (ingredient) =>
           `${ingredient.productId}:${ingredient.name}:${ingredient.quantity}`
       );
+
+      // Cập nhật outputProduct với số lượng hiện tại
+      const updatedOutput = {
+        ...outputProduct,
+        quantity: parseInt(outputQuantity) || 1,
+      };
+
       const outputArray = [
-        `${outputProduct.$id}:${outputProduct.name}:${parseInt(outputQuantity) || 1}`,
+        `${updatedOutput.productId}:${updatedOutput.name}:${updatedOutput.quantity}`,
       ];
 
-      await createItem(COLLECTION_IDS.recipes, {
+      await updateItem(COLLECTION_IDS.recipes, recipe.$id, {
         name: recipeName.trim(),
         description: description.trim(),
-        ingredients: ingredientsArray, // Mảng chuỗi JSON
-        output: outputArray, // Chuỗi JSON
+        ingredients: ingredientsArray,
+        output: outputArray,
       });
 
-      Alert.alert(t("success"), t("recipe_created_successfully"));
-      navigation.goBack();
+      Alert.alert(t("success"), t("recipe_updated_successfully"), [
+        { text: t("ok"), onPress: () => navigation.goBack() },
+      ]);
     } catch (error) {
-      console.error("Lỗi khi tạo công thức:", error);
-      Alert.alert(t("error"), t("create_recipe_error"));
+      console.error("Lỗi khi cập nhật công thức:", error);
+      Alert.alert(t("error"), t("update_recipe_error"));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteRecipe = () => {
+    Alert.alert(
+      t("confirm_delete"),
+      t("delete_recipe_confirmation").replace("{name}", recipeName),
+      [
+        {
+          text: t("cancel"),
+          style: "cancel",
+        },
+        {
+          text: t("delete"),
+          style: "destructive",
+          onPress: confirmDelete,
+        },
+      ]
+    );
+  };
+
+  const confirmDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await deleteItem(COLLECTION_IDS.recipes, recipe.$id);
+      Alert.alert(t("success"), t("recipe_deleted_successfully"), [
+        { text: t("ok"), onPress: () => navigation.goBack() },
+      ]);
+    } catch (error) {
+      console.error("Lỗi khi xóa công thức:", error);
+      Alert.alert(t("error"), t("delete_recipe_error"));
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -198,25 +263,27 @@ const CreateRecipeScreen: React.FC<CreateRecipeScreenProps> = ({
   const handleOutputProductSelect = (index: IndexPath) => {
     setOutputProductIndex(index);
     if (index.row < allProducts.length) {
-      setOutputProduct(allProducts[index.row]);
+      const product = allProducts[index.row];
+      setOutputProduct({
+        productId: product.$id,
+        name: product.name,
+        quantity: parseInt(outputQuantity) || 1,
+      });
     }
   };
 
   return (
     <Layout style={styles.container as ViewStyle}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header với gradient */}
+        {/* Header */}
         <LinearGradient
-          colors={["#2574FC", "#6A11CB"]}
+          colors={["#6A11CB", "#2575FC"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={styles.header as ViewStyle}
         >
           <Text category="h5" style={styles.headerTitle as TextStyle}>
-            {t("create_recipe")}
-          </Text>
-          <Text appearance="hint" style={styles.headerSubtitle as TextStyle}>
-            {t("create_recipe_description")}
+            {t("edit_recipe")}
           </Text>
         </LinearGradient>
 
@@ -233,10 +300,8 @@ const CreateRecipeScreen: React.FC<CreateRecipeScreenProps> = ({
               value={recipeName}
               onChangeText={setRecipeName}
               style={styles.input as TextStyle}
+              size="large"
               status="primary"
-              accessoryLeft={(props) => (
-                <Icon {...props} name="edit-2-outline" />
-              )}
             />
 
             <Input
@@ -244,12 +309,9 @@ const CreateRecipeScreen: React.FC<CreateRecipeScreenProps> = ({
               placeholder={t("enter_description")}
               value={description}
               onChangeText={setDescription}
+              style={styles.input as TextStyle}
               multiline
               textStyle={styles.multilineText as TextStyle}
-              style={styles.input as TextStyle}
-              accessoryLeft={(props) => (
-                <Icon {...props} name="message-square-outline" />
-              )}
             />
           </View>
 
@@ -258,11 +320,6 @@ const CreateRecipeScreen: React.FC<CreateRecipeScreenProps> = ({
           {/* Danh sách nguyên liệu */}
           <View style={styles.section as ViewStyle}>
             <Text category="s1" style={styles.sectionTitle as TextStyle}>
-              <Icon
-                name="layers-outline"
-                fill={theme["color-primary-500"]}
-                style={styles.titleIcon}
-              />
               {t("ingredients")}
             </Text>
 
@@ -302,16 +359,9 @@ const CreateRecipeScreen: React.FC<CreateRecipeScreenProps> = ({
                 ))}
               </View>
             ) : (
-              <View style={styles.emptyContainer as ViewStyle}>
-                <Icon
-                  name="alert-circle-outline"
-                  fill={theme["color-basic-500"]}
-                  style={styles.emptyIcon}
-                />
-                <Text appearance="hint" style={styles.emptyText as TextStyle}>
-                  {t("add_some_ingredients")}
-                </Text>
-              </View>
+              <Text appearance="hint" style={styles.emptyText as TextStyle}>
+                {t("no_ingredients_added")}
+              </Text>
             )}
 
             {/* Thêm nguyên liệu */}
@@ -365,11 +415,6 @@ const CreateRecipeScreen: React.FC<CreateRecipeScreenProps> = ({
           {/* Sản phẩm đầu ra */}
           <View style={styles.section as ViewStyle}>
             <Text category="s1" style={styles.sectionTitle as TextStyle}>
-              <Icon
-                name="checkmark-circle-outline"
-                fill={theme["color-success-500"]}
-                style={styles.titleIcon}
-              />
               {t("output_product")}
             </Text>
 
@@ -386,7 +431,7 @@ const CreateRecipeScreen: React.FC<CreateRecipeScreenProps> = ({
                   }}
                   value={outputProduct?.name || ""}
                   style={styles.selectOutput as ViewStyle}
-                  status="success"
+                  disabled={isLoading}
                 >
                   {allProducts.map((product) => (
                     <SelectItem key={product.$id} title={product.name} />
@@ -399,7 +444,7 @@ const CreateRecipeScreen: React.FC<CreateRecipeScreenProps> = ({
                   value={outputQuantity}
                   onChangeText={setOutputQuantity}
                   style={styles.outputQuantityInput as TextStyle}
-                  status="success"
+                  disabled={isLoading}
                 />
               </View>
 
@@ -411,7 +456,7 @@ const CreateRecipeScreen: React.FC<CreateRecipeScreenProps> = ({
                     style={styles.outputIcon}
                   />
                   <Text style={styles.outputText as TextStyle}>
-                    {t("recipe_will_produce")}
+                    {t("output_will_be")}
                   </Text>
                   <View style={styles.outputProductBadge as ViewStyle}>
                     <Text style={styles.outputProductText as TextStyle}>
@@ -424,19 +469,36 @@ const CreateRecipeScreen: React.FC<CreateRecipeScreenProps> = ({
           </View>
         </Card>
 
-        {/* Nút lưu */}
-        <Button
-          style={styles.saveButton as ViewStyle}
-          onPress={saveRecipe}
-          accessoryLeft={
-            isLoading
-              ? (props) => <Spinner size="small" status="basic" />
-              : (props) => <Icon {...props} name="save-outline" />
-          }
-          disabled={isLoading}
-        >
-          {isLoading ? t("saving") : t("save_recipe")}
-        </Button>
+        {/* Nút điều khiển */}
+        <View style={styles.buttonContainer as ViewStyle}>
+          <Button
+            status="danger"
+            style={styles.deleteButton as ViewStyle}
+            onPress={handleDeleteRecipe}
+            disabled={isLoading || isDeleting}
+            accessoryLeft={
+              isDeleting
+                ? (props) => <Spinner size="small" />
+                : (props) => <Icon {...props} name="trash-2-outline" />
+            }
+          >
+            {isDeleting ? t("deleting") : t("delete_recipe")}
+          </Button>
+
+          <Button
+            status="primary"
+            style={styles.updateButton as ViewStyle}
+            onPress={handleUpdateRecipe}
+            disabled={isLoading || isDeleting}
+            accessoryLeft={
+              isLoading
+                ? (props) => <Spinner size="small" />
+                : (props) => <Icon {...props} name="save-outline" />
+            }
+          >
+            {isLoading ? t("updating") : t("update_recipe")}
+          </Button>
+        </View>
       </ScrollView>
     </Layout>
   );
@@ -448,45 +510,32 @@ const themedStyles = StyleService.create({
     backgroundColor: "background-basic-color-2",
   },
   header: {
-    paddingVertical: 24,
+    paddingVertical: 20,
     paddingHorizontal: 16,
     borderBottomLeftRadius: 16,
     borderBottomRightRadius: 16,
+    marginBottom: 16,
   },
   headerTitle: {
     color: "white",
     fontWeight: "bold",
     textAlign: "center",
-    marginBottom: 8,
-  },
-  headerSubtitle: {
-    color: "white",
-    opacity: 0.8,
-    textAlign: "center",
   },
   formCard: {
     margin: 16,
     borderRadius: 16,
-    marginTop: 24,
+    marginTop: 0,
   },
   section: {
     marginBottom: 16,
   },
   sectionTitle: {
     fontWeight: "bold",
-    marginBottom: 16,
+    marginBottom: 12,
     color: "text-primary-color",
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  titleIcon: {
-    width: 20,
-    height: 20,
-    marginRight: 8,
   },
   input: {
     marginBottom: 12,
-    borderRadius: 8,
   },
   multilineText: {
     minHeight: 80,
@@ -533,21 +582,9 @@ const themedStyles = StyleService.create({
     color: "color-primary-700",
     fontWeight: "bold",
   },
-  emptyContainer: {
-    alignItems: "center",
-    padding: 24,
-    backgroundColor: "color-basic-100",
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  emptyIcon: {
-    width: 40,
-    height: 40,
-    marginBottom: 8,
-    opacity: 0.5,
-  },
   emptyText: {
     textAlign: "center",
+    marginBottom: 16,
     fontStyle: "italic",
   },
   addIngredientCard: {
@@ -614,11 +651,21 @@ const themedStyles = StyleService.create({
     color: "color-success-900",
     fontWeight: "bold",
   },
-  saveButton: {
-    margin: 16,
-    marginTop: 8,
+  buttonContainer: {
+    flexDirection: "row",
+    marginHorizontal: 16,
+    marginBottom: 24,
+  },
+  deleteButton: {
+    flex: 2,
+    marginRight: 8,
+    borderRadius: 8,
+  },
+  updateButton: {
+    flex: 3,
+    marginLeft: 8,
     borderRadius: 8,
   },
 });
 
-export default CreateRecipeScreen;
+export default EditRecipeScreen;

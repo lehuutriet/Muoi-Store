@@ -51,8 +51,8 @@ export const exportToCSV = async (data: StatisticsData, translations: any) => {
         
         // Sử dụng ExcelJS để tạo file Excel thực sự thay vì CSV
         const workbook = new ExcelJS.Workbook();
-        workbook.creator = 'Muối Store';
-        workbook.lastModifiedBy = 'Muối Store';
+        workbook.creator = 'AI-Coffee';
+        workbook.lastModifiedBy = 'AI-Coffee';
         workbook.created = new Date();
         workbook.modified = new Date();
         

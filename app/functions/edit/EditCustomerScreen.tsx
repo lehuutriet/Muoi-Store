@@ -25,7 +25,7 @@ import {
   Spinner,
 } from "@ui-kitten/components";
 import { useTranslation } from "react-i18next";
-import { useDatabases, COLLECTION_IDS } from "../hook/AppWrite";
+import { useDatabases, COLLECTION_IDS } from "../../hook/AppWrite";
 import { LinearGradient } from "expo-linear-gradient";
 
 const BackIcon = (props: any) => <Icon {...props} name="arrow-back" />;
@@ -109,7 +109,7 @@ const EditCustomerScreen: React.FC<EditCustomerProps> = ({
           style={styles.headerGradient as ViewStyle}
         >
           <Avatar
-            source={require("../../assets/avatar-placeholder.png")}
+            source={require("../../../assets/avatar-placeholder.png")}
             style={styles.avatar as ImageStyle}
             size="giant"
           />

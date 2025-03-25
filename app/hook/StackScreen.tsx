@@ -19,7 +19,7 @@ import {
   View,
   TouchableOpacity,
 } from "react-native";
-import UpdateStockScreen from "../screens/UpdateStockScreen";
+import UpdateStockScreen from "../../app/functions/edit/UpdateStockScreen";
 import PrinterScreen from "../screens/PrinterScreen";
 import StaffCheckoutScreen from "../screens/StaffCheckoutScreen";
 import WarehouseScreen from "../screens/WarehouseScreen";
@@ -28,24 +28,29 @@ import ChatScreen from "../screens/ChatScreen";
 import ReviewOrderScreen from "../screens/ReviewOrderScreen";
 import ReceiptScreen from "../screens/ReceiptScreen";
 import PasswordScreen from "../screens/PasswordScreen";
-import CreateOrderScreen from "../screens/CreateOrderScreen";
+import CreateOrderScreen from "../functions/add/CreateOrderScreen";
 import ManageOrderScreen from "../screens/ManageOrderScreen";
-import CreateProductScreen from "../screens/CreateProductScreen";
+import CreateProductScreen from "../functions/add/CreateProductScreen";
 import ManageProductScreen from "../screens/ManageProductScreen";
 import ManageTableScreen from "../screens/ManageTableScreen";
-import CreateWarehouseEntryScreen from "../screens/CreateWarehouseEntryScreen";
-import TabNavigator from "./BottomTab";
+import CreateWarehouseEntryScreen from "../functions/add/CreateWarehouseEntryScreen";
+import TabNavigator from "../navigator/BottomTab";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import StatisticScreen from "../screens/StatisticScreen";
 import { DrawerContext } from "../contexts/AppContext";
 import RecipeScreen from "../screens/RecipeScreen";
-import CreateRecipeScreen from "../screens/CreateRecipeScreen";
-import EditRecipeScreen from "../screens/EditRecipeScreen";
+import CreateRecipeScreen from "../functions/add/CreateRecipeScreen";
+import EditRecipeScreen from "../functions/edit/EditRecipeScreen";
 import LoyalCustomerScreen from "../screens/LoyalCustomerScreen";
-import AddCustomerScreen from "../screens/AddCustomerScreen";
-import EditCustomerScreen from "../screens/EditCustomerScreen";
+import AddCustomerScreen from "../functions/add/AddCustomerScreen";
+import EditCustomerScreen from "../functions/edit/EditCustomerScreen";
 import CouponScreen from "../screens/CouponScreen";
 import PromotionScreen from "../screens/PromotionScreen";
+import SupplierScreen from "@/app/screens/SupplierScreen";
+import AddSupplierScreen from "../functions/add/AddSupplierScreen";
+import EditSupplierScreen from "../functions/edit/EditSupplierScreen";
+import CalendarScreen from "../screens/CalendarScreen";
+import LanguageScreen from "../screens/LanguageScreen";
 // Định nghĩa các tham số cho navigation
 type RootStackParamList = {
   TabNavigator: undefined;
@@ -62,7 +67,15 @@ type RootStackParamList = {
   WarehouseScreen: undefined;
   ReportScreen: undefined;
   ChatScreen: undefined;
-  UpdateStockScreen: { item: any };
+  UpdateStockScreen: {
+    item: {
+      $id?: string;
+      name: string;
+      currentStock?: number;
+      minStock?: number;
+      price?: number;
+    };
+  };
   StatisticScreen: undefined;
   CreateWarehouseEntryScreen: undefined;
   StockTransferScreen: undefined;
@@ -74,6 +87,21 @@ type RootStackParamList = {
   EditCustomerScreen: undefined;
   CouponScreen: undefined;
   PromotionScreen: undefined;
+  SupplierScreen: undefined;
+  AddSupplierScreen: undefined;
+  EditSupplierScreen: {
+    supplier: {
+      $id: string;
+      name: string;
+      phone: string;
+      email?: string;
+      address?: string;
+      contactPerson?: string;
+      notes?: string;
+    };
+  };
+  CalendarScreen: undefined;
+  LanguageScreen: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -139,7 +167,7 @@ const StackScreen: React.FC<StackScreenProps> = ({
                 source={require("../../assets/images/iconshop.png")}
               />
               <View style={styles.headerTextContainer as ViewStyle}>
-                <Text category="h6">{userInfo.STORE_NAME || "Shop"}</Text>
+                <Text category="h6"> {t("shop_name")}</Text>
               </View>
             </TouchableOpacity>
           ),
@@ -311,6 +339,42 @@ const StackScreen: React.FC<StackScreenProps> = ({
         name="PromotionScreen"
         component={PromotionScreen}
         options={{ title: t("promotions") }}
+      />
+      <Stack.Screen
+        name="SupplierScreen"
+        component={SupplierScreen}
+        options={{
+          title: t("suppliers"),
+        }}
+      />
+      <Stack.Screen
+        name="AddSupplierScreen"
+        component={AddSupplierScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="EditSupplierScreen"
+        component={EditSupplierScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="CalendarScreen"
+        component={CalendarScreen}
+        options={{
+          title: t("calendar"),
+          headerTitleAlign: "center",
+        }}
+      />
+      <Stack.Screen
+        name="LanguageScreen"
+        component={LanguageScreen}
+        options={{
+          title: t("language"),
+        }}
       />
     </Stack.Navigator>
   );

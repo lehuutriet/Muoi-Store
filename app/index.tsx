@@ -17,7 +17,7 @@ import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { useTranslation } from "react-i18next";
 import { createStackNavigator } from "@react-navigation/stack";
-
+import { setupNotifications } from "./utils/notificationService";
 import {
   Animated,
   Platform,
@@ -184,6 +184,10 @@ function MainScreen() {
   const [pushToken, setPushToken] = useState<string>("");
   const Stack = createStackNavigator<RootStackParamList>();
 
+  // Trong hàm component chính
+  useEffect(() => {
+    setupNotifications();
+  }, []);
   const toggleTheme = () => {
     const nextTheme = theme === "light" ? "dark" : "light";
     setTheme(nextTheme);

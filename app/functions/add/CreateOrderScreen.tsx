@@ -29,16 +29,16 @@ import {
   useResetRecoilState,
   useRecoilCallback,
 } from "recoil";
-import * as RootNavigation from "../navigator/RootNavigation";
-import ProductList from "../components/product/ProductList";
-import { CategoryScrollbar } from "../components/category";
+import * as RootNavigation from "../../navigator/RootNavigation";
+import ProductList from "../../components/product/ProductList";
+import { CategoryScrollbar } from "../../components/category";
 import {
   allCategoryAtom,
   allProductsAtom,
   productIdsAtom,
   productAtomFamily,
-} from "../states";
-import { currentOrderAtom } from "../states/orderState";
+} from "../../states";
+import { currentOrderAtom } from "../../states/orderState";
 import { RouteProp } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 

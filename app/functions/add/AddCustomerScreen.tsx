@@ -23,7 +23,7 @@ import {
   Spinner,
 } from "@ui-kitten/components";
 import { useTranslation } from "react-i18next";
-import { useDatabases, COLLECTION_IDS } from "../hook/AppWrite";
+import { useDatabases, COLLECTION_IDS } from "../../hook/AppWrite";
 import { ID } from "appwrite";
 import { LinearGradient } from "expo-linear-gradient";
 

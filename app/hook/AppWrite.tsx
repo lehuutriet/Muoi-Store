@@ -44,7 +44,7 @@ let PROJECT_ID = "66a085e60016a161b67b";
 const DEFAULT_USER_PREFS = {
   DATABASE_ID: "muoi-store",
   BUCKET_ID: "muoi-store-storage",
-  STORE_NAME: "Muối Store",
+  STORE_NAME: "AYAI-Coffee",
   PUSH_TOKEN: "",
   NAME: "",
   PHONE: "",
@@ -63,6 +63,9 @@ export const COLLECTION_IDS = {
   customers: "customers",
   promotions: "promotions",
   coupons: "coupons",
+  suppliers: "suppliers",
+  supplierTransactions: "supplierTransactions",
+  events: "events",
   // store: 'store'
 };
 interface GraphQLResponse {

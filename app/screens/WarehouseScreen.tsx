@@ -172,15 +172,6 @@ const WarehouseScreen: React.FC<WarehouseScreenProps> = ({ navigation }) => {
       // Hiển thị dialog để chọn kiểu báo cáo
       Alert.alert(t("export_report"), t("choose_report_type"), [
         {
-          text: t("excel_formatted"), // Tùy chọn mới
-          onPress: async () => {
-            const success = await exportFormattedExcelReport(productStocks, t);
-            if (!success) {
-              Alert.alert("", t("export_error"));
-            }
-          },
-        },
-        {
           text: t("simple_csv"),
           onPress: async () => {
             const success = await exportWarehouseReport(productStocks, t);

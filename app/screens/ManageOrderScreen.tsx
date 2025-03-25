@@ -38,11 +38,10 @@ type ManageOrderScreenRouteProp = RouteProp<
   "ManageOrderScreen"
 >;
 
-// Định nghĩa kiểu cho props của component
-type ManageOrderScreenProps = {
-  navigation: ManageOrderScreenNavigationProp;
-  route: ManageOrderScreenRouteProp;
-};
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { ParamListBase } from "@react-navigation/native";
+
+type ManageOrderScreenProps = NativeStackScreenProps<ParamListBase>;
 
 const ManageOrderScreen = ({ route, navigation }: ManageOrderScreenProps) => {
   const styles = useStyleSheet(styleSheet);

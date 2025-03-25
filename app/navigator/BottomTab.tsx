@@ -15,9 +15,14 @@ import {
 import HomeScreen from "../screens/HomeScreen";
 import StatisticScreen from "../screens/StatisticScreen";
 import SettingScreen from "../screens/SettingScreen";
+import WarehouseScreen from "../screens/WarehouseScreen";
+import ManageOrderScreen from "../screens/ManageOrderScreen";
 const { Navigator, Screen } = createBottomTabNavigator();
-
-const BottomTabBar = ({ navigation, state }) => {
+interface BottomTabBarProps {
+  navigation: any;
+  state: any;
+}
+const BottomTabBar: React.FC<BottomTabBarProps> = ({ navigation, state }) => {
   const { t } = useTranslation();
   return (
     <BottomNavigation
@@ -27,6 +32,14 @@ const BottomTabBar = ({ navigation, state }) => {
       <BottomNavigationTab
         title={`${t("home")}`}
         icon={(props): IconElement => <Icon {...props} name="home" />}
+      />
+      <BottomNavigationTab
+        title={`${t("orders")}`}
+        icon={(props): IconElement => <Icon {...props} name="shopping-cart" />}
+      />
+      <BottomNavigationTab
+        title={`${t("warehouse")}`}
+        icon={(props): IconElement => <Icon {...props} name="archive" />}
       />
       <BottomNavigationTab
         title={`${t("statistic")}`}
@@ -53,6 +66,24 @@ const TabNavigator: React.FC<TabNavigatorProps> = ({ onLoggedOut }) => {
           title: `${t("home")}`,
           headerShown: false,
           headerTitleAlign: "left",
+        })}
+      />
+      <Screen
+        name={`${t("orders")}`}
+        component={ManageOrderScreen}
+        options={({ navigation }) => ({
+          title: `${t("manage_order")}`,
+          headerTitleAlign: "left",
+          unmountOnBlur: true,
+        })}
+      />
+      <Screen
+        name={`${t("warehouse")}`}
+        component={WarehouseScreen}
+        options={({ navigation }) => ({
+          title: `${t("warehouse")}`,
+          headerTitleAlign: "left",
+          unmountOnBlur: true,
         })}
       />
       <Screen

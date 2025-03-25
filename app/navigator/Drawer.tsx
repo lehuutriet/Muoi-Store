@@ -11,7 +11,7 @@ import { Query } from "appwrite";
 import { useRecoilState, useRecoilCallback } from "recoil";
 import * as RootNavigation from "./RootNavigation";
 import { userAtom } from "../states";
-import StackScreen from "./StackScreen";
+import StackScreen from "../hook/StackScreen";
 import { NavigationContainer } from "@react-navigation/native";
 import { RouteProp } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";

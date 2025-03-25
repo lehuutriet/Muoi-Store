@@ -73,6 +73,8 @@ type RootStackParamList = {
   LoyalCustomerScreen: undefined;
   CouponScreen: undefined;
   PromotionScreen: undefined;
+  SupplierScreen: undefined;
+  CalendarScreen: undefined;
 };
 
 type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList>;
@@ -177,11 +179,16 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
     setRefreshing(false);
   }, [fetchTodayData]);
 
-  const featureButtons = [
+  const featureButtons: Array<{
+    title: string;
+    icon: string;
+    color: [string, string];
+    onPress: () => void;
+  }> = [
     {
       title: t("create_order"),
       icon: "shopping-cart-outline",
-      color: ["#FF6B6B", "#FF8E8E"] as [string, string],
+      color: ["#FF6B6B", "#FF8E8E"],
       onPress: () =>
         navigation.navigate("CreateOrderScreen", {
           title: t("create_order"),
@@ -242,6 +249,19 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
       color: ["#00BCD4", "#00ACC1"] as const,
       onPress: () => navigation.navigate("PromotionScreen"),
     },
+    // Trong mảng featureButtons của HomeScreen.tsx, thêm:
+    {
+      title: t("suppliers"),
+      icon: "people-outline",
+      color: ["#00BCD4", "#00ACC1"],
+      onPress: () => navigation.navigate("SupplierScreen"),
+    },
+    {
+      title: t("calendar"),
+      icon: "calendar-outline",
+      color: ["#3366FF", "#2541B2"] as const,
+      onPress: () => navigation.navigate("CalendarScreen"),
+    },
   ];
 
   const actions = [
@@ -283,7 +303,7 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
                   {greeting}
                 </Text>
                 <Text category="h4" style={styles.storeNameText as TextStyle}>
-                  {userInfo.STORE_NAME || t("shop_name")}
+                  {t("shop_name")}
                 </Text>
               </View>
             </View>

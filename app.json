@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Muoi-Store",
-    "slug": "muoi-store",
+    "name": "AYAI-Coffee",
+  "slug": "muoi-store",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -16,7 +16,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.muoistore.app",
+      "bundleIdentifier": "com.ayaicoffee.app",
       "useFrameworks": "static",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -27,7 +27,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.muoistore.app",
+      "package": "com.ayaicoffee.app",
       "permissions": [
         "android.permission.INTERNET",
         "android.permission.BLUETOOTH",

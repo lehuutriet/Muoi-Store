@@ -26,13 +26,17 @@ import {
   Card,
   Spinner,
 } from "@ui-kitten/components";
-import { WaitingModal } from "../components/common";
+import { WaitingModal } from "../../components/common";
 import { createNumberMask, useMaskedInputProps } from "react-native-mask-input";
 
-import { productIdsAtom, productAtomFamily, allCategoryAtom } from "../states";
+import {
+  productIdsAtom,
+  productAtomFamily,
+  allCategoryAtom,
+} from "../../states";
 import { useRecoilState, useRecoilCallback, atom } from "recoil";
 
-import { useStorage, useDatabases, COLLECTION_IDS } from "../hook/AppWrite";
+import { useStorage, useDatabases, COLLECTION_IDS } from "../../hook/AppWrite";
 import { useTranslation } from "react-i18next";
 import { RouteProp } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
@@ -640,6 +644,7 @@ const CreateProductScreen = ({
             status="primary"
             accessoryLeft={(props) => <Icon {...props} name="plus-outline" />}
             onPress={() => onCreate("create", false)}
+            disabled={!name || !price || selectedCategoryIndex.row === 0}
           >
             {t("create_more")}
           </Button>
