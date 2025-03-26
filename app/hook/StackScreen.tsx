@@ -51,6 +51,7 @@ import AddSupplierScreen from "../functions/add/AddSupplierScreen";
 import EditSupplierScreen from "../functions/edit/EditSupplierScreen";
 import CalendarScreen from "../screens/CalendarScreen";
 import LanguageScreen from "../screens/LanguageScreen";
+import ProfileScreen from "../screens/ProfileScreen";
 // Định nghĩa các tham số cho navigation
 type RootStackParamList = {
   TabNavigator: undefined;
@@ -102,6 +103,7 @@ type RootStackParamList = {
   };
   CalendarScreen: undefined;
   LanguageScreen: undefined;
+  ProfileScreen: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -374,6 +376,13 @@ const StackScreen: React.FC<StackScreenProps> = ({
         component={LanguageScreen}
         options={{
           title: t("language"),
+        }}
+      />
+      <Stack.Screen
+        name="ProfileScreen"
+        component={ProfileScreen}
+        options={{
+          title: t("profile_settings"),
         }}
       />
     </Stack.Navigator>

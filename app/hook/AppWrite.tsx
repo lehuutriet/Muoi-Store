@@ -128,16 +128,28 @@ export function useAccounts() {
   const { account, graphql, teams } = context;
 
   const getUserPrefs = async () => {
-    const storedUserPrefs = await AsyncStorage.getItem("userPrefs");
-    if (storedUserPrefs) {
-      const parsedPrefs = JSON.parse(storedUserPrefs);
-      // Lấy phần tử đầu tiên từ mảng
-      return Array.isArray(parsedPrefs) ? parsedPrefs[0] : parsedPrefs;
-    } else {
+    try {
+      // Cố gắng lấy từ server trước
       const prefs = await account.getPrefs();
-      const userPrefs = prefs && prefs.DATABASE_ID ? prefs : DEFAULT_USER_PREFS;
-      await AsyncStorage.setItem("userPrefs", JSON.stringify(userPrefs));
-      return userPrefs;
+      if (prefs && Object.keys(prefs).length > 0) {
+        // Nếu thành công, cập nhật AsyncStorage
+        await AsyncStorage.setItem("userPrefs", JSON.stringify(prefs));
+        return prefs;
+      }
+
+      // Nếu không lấy được từ server, thử lấy từ AsyncStorage
+      const storedPrefs = await AsyncStorage.getItem("userPrefs");
+      if (storedPrefs) {
+        return JSON.parse(storedPrefs);
+      }
+
+      return DEFAULT_USER_PREFS;
+    } catch (error) {
+      console.error("Error getting user prefs:", error);
+
+      // Fallback đến AsyncStorage
+      const storedPrefs = await AsyncStorage.getItem("userPrefs");
+      return storedPrefs ? JSON.parse(storedPrefs) : DEFAULT_USER_PREFS;
     }
   };
 

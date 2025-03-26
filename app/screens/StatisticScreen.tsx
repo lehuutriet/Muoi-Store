@@ -1094,58 +1094,57 @@ const StatisticScreen = () => {
           ) : (
             // Hiển thị thống kê thông thường cho các tab khác
             <>
-              <View style={styles.mainStats as ViewStyle}>
-                <Card
+              <Card
+                style={
+                  [
+                    styles.mainStatCard,
+                    styles.revenueCard,
+                  ] as StyleProp<ViewStyle>
+                }
+              >
+                <Text category="label" style={styles.statLabel as TextStyle}>
+                  {t("total_revenue")}
+                </Text>
+                <Text
+                  category="h4"
                   style={
-                    [
-                      styles.mainStatCard,
-                      styles.revenueCard,
-                    ] as StyleProp<ViewStyle>
+                    {
+                      ...styles.statValue,
+                      textAlign: "center",
+                      width: "100%",
+                    } as StyleProp<TextStyle>
                   }
                 >
-                  <Text category="label" style={styles.statLabel as TextStyle}>
-                    {t("total_revenue")}
-                  </Text>
-                  <Text
-                    category="h4"
-                    style={
-                      {
-                        ...styles.statValue,
-                        textAlign: "center",
-                        width: "100%",
-                      } as StyleProp<TextStyle>
-                    }
-                  >
-                    {Intl.NumberFormat("vi-VN", {
-                      style: "currency",
-                      currency: "VND",
-                    }).format(totalRevenue)}
-                  </Text>
-                </Card>
+                  {Intl.NumberFormat("vi-VN", {
+                    style: "currency",
+                    currency: "VND",
+                  }).format(totalRevenue)}
+                </Text>
+              </Card>
 
-                <Card
-                  style={
-                    [
-                      styles.mainStatCard,
-                      styles.todayCard,
-                    ] as StyleProp<ViewStyle>
-                  }
-                >
-                  <Text category="label" style={styles.statLabel as TextStyle}>
-                    {timeFrame === "day"
-                      ? t("today_revenue")
-                      : timeFrame === "week"
-                        ? t("week_revenue")
-                        : t("month_revenue")}
-                  </Text>
-                  <Text category="h4" style={styles.statValue as TextStyle}>
-                    {Intl.NumberFormat("vi-VN", {
-                      style: "currency",
-                      currency: "VND",
-                    }).format(dailyRevenue)}
-                  </Text>
-                </Card>
-              </View>
+              <Card
+                style={
+                  [
+                    styles.mainStatCard,
+                    styles.todayCard,
+                  ] as StyleProp<ViewStyle>
+                }
+              >
+                <Text category="label" style={styles.statLabel as TextStyle}>
+                  {timeFrame === "day"
+                    ? t("today_revenue")
+                    : timeFrame === "week"
+                      ? t("week_revenue")
+                      : t("month_revenue")}
+                </Text>
+                <Text category="h4" style={styles.statValue as TextStyle}>
+                  {Intl.NumberFormat("vi-VN", {
+                    style: "currency",
+                    currency: "VND",
+                  }).format(dailyRevenue)}
+                </Text>
+              </Card>
+
               <Card
                 style={
                   [
