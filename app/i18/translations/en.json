@@ -583,5 +583,6 @@
   "completed": "Completed",
   "total": "Total",
   "showing_orders_for": "Showing orders for",
-  "no_recent_orders": "No recent orders"
+  "no_recent_orders": "No recent orders",
+   "no_orders_found": "No orders found"
 }

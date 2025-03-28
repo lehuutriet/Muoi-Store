@@ -585,5 +585,6 @@
   "completed": "Đã hoàn thành",
   "total": "Tổng cộng",
  "showing_orders_for": "Đang hiển thị đơn hàng cho",
-  "no_recent_orders": "Không có đơn hàng gần đây"
+  "no_recent_orders": "Không có đơn hàng gần đây",
+  "no_orders_found": "Không tìm thấy đơn hàng nào"
 } 
