@@ -20,6 +20,7 @@ import {
   Button,
   Avatar,
   Divider,
+  Spinner,
 } from "@ui-kitten/components";
 import { FloatingAction } from "react-native-floating-action";
 import { StyleService, useStyleSheet } from "@ui-kitten/components";
@@ -27,6 +28,7 @@ import { useRecoilValue } from "recoil";
 import React, { useEffect, useState, useCallback, useContext } from "react";
 import { allProductsAtom, userAtom } from "../states";
 import { LinearGradient } from "expo-linear-gradient";
+import { Query } from "appwrite";
 import Animated, {
   FadeInDown,
   FadeIn,
@@ -36,12 +38,13 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 import { useDatabases, COLLECTION_IDS } from "../hook/AppWrite";
-import { Query } from "appwrite";
+
 import { useFocusEffect } from "@react-navigation/native";
 import { DrawerContext } from "../contexts/AppContext";
 
 const { width } = Dimensions.get("window");
-
+import { useRecoilCallback } from "recoil";
+import { productIdsAtom, productAtomFamily } from "../states";
 interface Product {
   $id: string;
   name: string;
@@ -53,6 +56,17 @@ interface Product {
   stock?: number;
   minStock?: number;
   description?: string;
+}
+interface Order {
+  $id: string;
+  status: string;
+  date: string;
+  total: number;
+  customerName?: string;
+  customerPhone?: string;
+  table?: string;
+  note?: string;
+  // Thêm các trường khác nếu cần
 }
 
 type RootStackParamList = {
@@ -75,6 +89,9 @@ type RootStackParamList = {
   PromotionScreen: undefined;
   SupplierScreen: undefined;
   CalendarScreen: undefined;
+  ReviewOrderScreen: {
+    orderInfo: Order;
+  };
 };
 
 type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList>;
@@ -94,8 +111,61 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
   const [refreshing, setRefreshing] = useState(false);
   const [greeting, setGreeting] = useState("");
   const animatedValue = useSharedValue(0);
-  const { getAllItem } = useDatabases();
+
   const { toggleDrawer } = useContext(DrawerContext);
+  const { getAllItem } = useDatabases();
+
+  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(true);
+
+  // Lấy đơn hàng gần đây
+  useEffect(() => {
+    const fetchRecentOrders = async () => {
+      try {
+        setIsLoadingOrders(true);
+        const currentDate = new Date();
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(currentDate.getDate() - 7);
+
+        // Sử dụng Query từ Appwrite để lọc theo ngày và sắp xếp theo thời gian mới nhất
+        const orders = await getAllItem(COLLECTION_IDS.orders, [
+          Query.greaterThan("date", sevenDaysAgo.toISOString()),
+          Query.orderDesc("$createdAt"),
+        ]);
+
+        // Chỉ lấy 5 đơn hàng mới nhất
+        setRecentOrders(orders.slice(0, 5));
+      } catch (error) {
+        console.error("Error fetching recent orders:", error);
+      } finally {
+        setIsLoadingOrders(false);
+      }
+    };
+
+    fetchRecentOrders();
+  }, []);
+  const refreshProductList = useRecoilCallback(
+    ({ set }) =>
+      async () => {
+        try {
+          console.log("Refreshing product list from database...");
+          const productData = await getAllItem(COLLECTION_IDS.products);
+
+          // Cập nhật vào atom allProductsAtom thay vì từng sản phẩm một
+          set(allProductsAtom, productData);
+
+          console.log(
+            "Products refreshed successfully with",
+            productData.length,
+            "items"
+          );
+        } catch (error) {
+          console.error("Error refreshing product list:", error);
+        }
+      },
+    [getAllItem]
+  );
+
   // Animation for cards
   const animatedStyle = useAnimatedStyle(() => {
     return {
@@ -189,11 +259,14 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
       title: t("create_order"),
       icon: "shopping-cart-outline",
       color: ["#FF6B6B", "#FF8E8E"],
-      onPress: () =>
-        navigation.navigate("CreateOrderScreen", {
-          title: t("create_order"),
-          method: "create",
-        }),
+      onPress: () => {
+        refreshProductList().then(() => {
+          navigation.navigate("CreateOrderScreen", {
+            title: t("create_order"),
+            method: "create",
+          });
+        });
+      },
     },
     {
       title: t("manage_order"),
@@ -249,7 +322,6 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
       color: ["#00BCD4", "#00ACC1"] as const,
       onPress: () => navigation.navigate("PromotionScreen"),
     },
-    // Trong mảng featureButtons của HomeScreen.tsx, thêm:
     {
       title: t("suppliers"),
       icon: "people-outline",
@@ -282,8 +354,10 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
   return (
     <Layout style={styles.rootContainer as ViewStyle}>
       <LinearGradient
-        colors={["#f8f9fa", "#e9ecef"] as const}
+        colors={["#f8f9fa", "#e9ecef", "#f5f5f5"]}
         style={styles.gradient as ViewStyle}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
       >
         <ScrollView
           style={styles.scrollView as ViewStyle}
@@ -297,123 +371,302 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
             entering={FadeIn.duration(800)}
             style={styles.headerContainer as ViewStyle}
           >
-            <View style={styles.headerContent as ViewStyle}>
-              <View>
-                <Text category="s1" style={styles.greetingText as TextStyle}>
-                  {greeting}
-                </Text>
-                <Text category="h4" style={styles.storeNameText as TextStyle}>
-                  {t("shop_name")}
-                </Text>
+            <LinearGradient
+              colors={["#6C5CE7", "#A363FF"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.headerGradient as ViewStyle}
+            >
+              <View style={styles.headerContent as ViewStyle}>
+                <View>
+                  <Text category="s1" style={styles.greetingText as TextStyle}>
+                    {greeting}
+                  </Text>
+                  <Text category="h4" style={styles.storeNameText as TextStyle}>
+                    {userInfo.STORE_NAME || t("shop_name")}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={toggleDrawer}
+                  style={styles.avatarContainer as ViewStyle}
+                >
+                  <Avatar
+                    size="large"
+                    source={require("../../assets/images/iconshop.png")}
+                    style={styles.avatarImage as ImageStyle}
+                  />
+                </TouchableOpacity>
               </View>
-            </View>
+            </LinearGradient>
           </Animated.View>
 
           {/* Quick Stats Cards */}
-          <Animated.View
-            entering={FadeInDown.delay(200)}
-            style={[styles.statsContainer as ViewStyle, animatedStyle]}
-          >
-            {/* Thêm TouchableOpacity bao quanh Card doanh thu */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              style={{ width: (width - 35) / 2 }}
+          <View style={styles.statsContainer as ViewStyle}>
+            <Animated.View
+              entering={FadeInDown.delay(200).duration(500)}
+              style={[styles.statCardContainer as ViewStyle, animatedStyle]}
             >
-              <Card
-                style={[styles.statCard, styles.revenueCard] as ViewStyle[]}
+              <TouchableOpacity
+                activeOpacity={0.7}
+                style={styles.statCardWrapper as ViewStyle}
                 onPress={() => navigation.navigate("StatisticScreen")}
               >
-                <View style={styles.statCardContent as ViewStyle}>
-                  <Icon
-                    name="trending-up-outline"
-                    fill="#2F80ED"
-                    style={styles.statIcon as ViewStyle}
-                  />
-                  <View>
-                    <Text category="c1" style={styles.statLabel as TextStyle}>
+                <LinearGradient
+                  colors={["#2B32B2", "#1488CC"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.statCardGradient as ViewStyle}
+                >
+                  <View style={styles.statIconContainer as ViewStyle}>
+                    <Icon
+                      name="trending-up-outline"
+                      fill="#FFFFFF"
+                      style={styles.statIcon as ViewStyle}
+                    />
+                  </View>
+                  <View style={styles.statTextContainer as ViewStyle}>
+                    <Text
+                      category="c1"
+                      style={styles.statLabelModern as TextStyle}
+                    >
                       {t("today_revenue1")}
                     </Text>
                     <Text
                       category="h6"
-                      style={
-                        [
-                          styles.statValue,
-                          { fontSize: 14 },
-                        ] as unknown as TextStyle
-                      }
-                      numberOfLines={2}
+                      style={styles.statValueModern as TextStyle}
                     >
                       {new Intl.NumberFormat("vi-VN", {
                         maximumFractionDigits: 0,
                       }).format(todayRevenue) + "đ"}
                     </Text>
                   </View>
-                </View>
-              </Card>
-            </TouchableOpacity>
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
 
-            {/* Thêm TouchableOpacity bao quanh Card đơn hàng */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              style={{ width: (width - 35) / 2 }}
+            <Animated.View
+              entering={FadeInDown.delay(300).duration(500)}
+              style={[styles.statCardContainer as ViewStyle, animatedStyle]}
             >
-              <Card
-                style={[styles.statCard, styles.ordersCard] as ViewStyle[]}
+              <TouchableOpacity
+                activeOpacity={0.7}
+                style={styles.statCardWrapper as ViewStyle}
                 onPress={() => navigation.navigate("ManageOrderScreen")}
               >
-                <View style={styles.statCardContent as ViewStyle}>
-                  <Icon
-                    name="shopping-bag-outline"
-                    fill="#FF9800"
-                    style={styles.statIcon as ViewStyle}
-                  />
-                  <View>
-                    <Text category="c1" style={styles.statLabel as TextStyle}>
+                <LinearGradient
+                  colors={["#FF416C", "#FF4B2B"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.statCardGradient as ViewStyle}
+                >
+                  <View style={styles.statIconContainer as ViewStyle}>
+                    <Icon
+                      name="shopping-bag-outline"
+                      fill="#FFFFFF"
+                      style={styles.statIcon as ViewStyle}
+                    />
+                  </View>
+                  <View style={styles.statTextContainer as ViewStyle}>
+                    <Text
+                      category="c1"
+                      style={styles.statLabelModern as TextStyle}
+                    >
                       {t("today_orders1")}
                     </Text>
-                    <Text category="h6" style={styles.statValue as TextStyle}>
+                    <Text
+                      category="h6"
+                      style={styles.statValueModern as TextStyle}
+                    >
                       {todayOrders}
                     </Text>
                   </View>
-                </View>
-              </Card>
-            </TouchableOpacity>
-          </Animated.View>
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
 
           {/* Main Features Grid */}
           <Animated.View
-            entering={FadeInDown.delay(300)}
+            entering={FadeInDown.delay(400)}
             style={styles.featuresContainer as ViewStyle}
           >
-            <Text category="h6" style={styles.sectionTitle as TextStyle}>
-              {t("features")}
-            </Text>
+            <View style={styles.sectionTitleContainer as ViewStyle}>
+              <Text category="h6" style={styles.sectionTitle as TextStyle}>
+                {t("features")}
+              </Text>
+            </View>
+
             <View style={styles.featuresGrid as ViewStyle}>
               {featureButtons.map((feature, index) => (
-                <TouchableOpacity
+                <Animated.View
                   key={index}
-                  style={styles.featureButton as ViewStyle}
-                  onPress={feature.onPress}
-                  activeOpacity={0.7}
+                  entering={FadeInRight.delay(200 + index * 50).duration(400)}
+                  style={styles.featureButtonContainer as ViewStyle}
                 >
-                  <LinearGradient
-                    colors={feature.color}
-                    style={styles.featureGradient as ViewStyle}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
+                  <TouchableOpacity
+                    style={styles.featureButton as ViewStyle}
+                    onPress={feature.onPress}
+                    activeOpacity={0.7}
                   >
-                    <Icon
-                      name={feature.icon}
-                      fill="white"
-                      style={styles.featureIcon as ViewStyle}
-                    />
-                  </LinearGradient>
-                  <Text category="s2" style={styles.featureText as TextStyle}>
-                    {feature.title}
-                  </Text>
-                </TouchableOpacity>
+                    <LinearGradient
+                      colors={feature.color}
+                      style={styles.featureGradient as ViewStyle}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <Icon
+                        name={feature.icon}
+                        fill="white"
+                        style={styles.featureIcon as ViewStyle}
+                      />
+                    </LinearGradient>
+                    <Text category="s2" style={styles.featureText as TextStyle}>
+                      {feature.title}
+                    </Text>
+                  </TouchableOpacity>
+                </Animated.View>
               ))}
             </View>
+          </Animated.View>
+
+          {/* Recent Orders Section */}
+          <Animated.View
+            entering={FadeInDown.delay(500)}
+            style={styles.recentOrdersContainer as ViewStyle}
+          >
+            <View style={styles.sectionTitleContainer as ViewStyle}>
+              <Text category="h6" style={styles.sectionTitle as TextStyle}>
+                {t("recent_orders")}
+              </Text>
+              <TouchableOpacity
+                onPress={() => navigation.navigate("ManageOrderScreen")}
+              >
+                <Text category="s1" style={styles.viewAllText as TextStyle}>
+                  {t("view_all")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {isLoadingOrders ? (
+              <View style={styles.loadingContainer as ViewStyle}>
+                <Spinner size="medium" />
+              </View>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.recentOrdersScroll as ViewStyle}
+              >
+                {recentOrders.length > 0 ? (
+                  recentOrders.map((order, index) => (
+                    <Animated.View
+                      key={order.$id}
+                      entering={FadeInRight.delay(600 + index * 100)}
+                      style={styles.orderCardContainer as ViewStyle}
+                    >
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={() => {
+                          const orderInfo = order; // Hoặc chuyển đổi định dạng nếu cần
+                          navigation.navigate("ReviewOrderScreen", {
+                            orderInfo,
+                          });
+                        }}
+                      >
+                        <Card style={styles.orderCard as ViewStyle}>
+                          <View style={styles.orderCardHeader as ViewStyle}>
+                            <Text
+                              category="s1"
+                              style={styles.orderIdText as TextStyle}
+                              numberOfLines={1}
+                            >
+                              #{order.$id.substring(0, 8)}
+                            </Text>
+                            <View
+                              style={
+                                [
+                                  styles.orderStatusBadge as ViewStyle,
+                                  order.status === "unpaid"
+                                    ? styles.statusPending
+                                    : styles.statusCompleted,
+                                ] as ViewStyle[]
+                              }
+                            >
+                              <Text
+                                category="c1"
+                                style={styles.orderStatusText as TextStyle}
+                              >
+                                {order.status === "unpaid"
+                                  ? t("pending")
+                                  : t("completed")}
+                              </Text>
+                            </View>
+                          </View>
+
+                          <View style={styles.orderInfoRow as ViewStyle}>
+                            <Icon
+                              name="calendar-outline"
+                              fill="#6C5CE7"
+                              style={styles.orderInfoIcon as ImageStyle}
+                            />
+                            <Text
+                              category="c1"
+                              style={styles.orderInfoText as TextStyle}
+                            >
+                              {new Date(order.date).toLocaleDateString()}
+                            </Text>
+                          </View>
+
+                          <View style={styles.orderInfoRow as ViewStyle}>
+                            <Icon
+                              name="credit-card-outline"
+                              fill="#6C5CE7"
+                              style={styles.orderInfoIcon as ImageStyle}
+                            />
+                            <Text
+                              category="c1"
+                              style={styles.orderInfoText as TextStyle}
+                            >
+                              {order.status === "cash"
+                                ? t("cash")
+                                : order.status === "transfer"
+                                  ? t("transfer")
+                                  : t("unpaid")}
+                            </Text>
+                          </View>
+
+                          <View style={styles.orderTotalRow as ViewStyle}>
+                            <Text
+                              category="s2"
+                              style={styles.orderTotalLabel as TextStyle}
+                            >
+                              {t("total")}:
+                            </Text>
+                            <Text
+                              category="s1"
+                              style={styles.orderTotalValue as TextStyle}
+                            >
+                              {new Intl.NumberFormat("vi-VN", {
+                                maximumFractionDigits: 0,
+                              }).format(order.total) + "đ"}
+                            </Text>
+                          </View>
+                        </Card>
+                      </TouchableOpacity>
+                    </Animated.View>
+                  ))
+                ) : (
+                  <View style={styles.emptyContainer as ViewStyle}>
+                    <Icon
+                      name="shopping-bag-outline"
+                      fill="#d3d3d3"
+                      style={styles.emptyIcon as ImageStyle}
+                    />
+                    <Text appearance="hint">{t("no_recent_orders")}</Text>
+                  </View>
+                )}
+              </ScrollView>
+            )}
           </Animated.View>
 
           {/* Bottom padding */}
@@ -430,9 +683,13 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
         distanceToEdge={20}
         onPressItem={(name) => {
           if (name === "CreateOrderScreen") {
-            navigation.navigate(name, {
-              title: t("create_order"),
-              method: "create",
+            // Gọi refresh trước khi chuyển hướng
+            refreshProductList().then(() => {
+              console.log("Navigation to CreateOrderScreen after refresh");
+              navigation.navigate(name, {
+                title: t("create_order"),
+                method: "create",
+              });
             });
           } else if (name === "CreateProductScreen") {
             navigation.navigate(name, {
@@ -462,9 +719,22 @@ const styleSheet = StyleService.create({
   scrollView: {
     flex: 1,
   },
+
+  // Header styles
   headerContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 5,
+  },
+  headerGradient: {
+    borderRadius: 20,
     padding: 20,
-    paddingTop: 40,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
+    elevation: 8,
+    marginBottom: 15,
   },
   headerContent: {
     flexDirection: "row",
@@ -472,24 +742,77 @@ const styleSheet = StyleService.create({
     alignItems: "center",
   },
   greetingText: {
-    color: "text-hint-color",
+    color: "white",
     marginBottom: 4,
+    opacity: 0.9,
   },
   storeNameText: {
     fontWeight: "bold",
+    color: "white",
+  },
+  avatarContainer: {
+    borderWidth: 2,
+    borderColor: "white",
+    borderRadius: 30,
+    padding: 2,
+  },
+  avatarImage: {
+    borderRadius: 28,
   },
 
+  // Stats cards
   statsContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: 16,
     marginBottom: 24,
   },
+  statCardContainer: {
+    width: (width - 40) / 2,
+  },
+  statCardWrapper: {
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  statCardGradient: {
+    padding: 16,
+    height: 100,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  statIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  statTextContainer: {
+    flex: 1,
+  },
+  statLabelModern: {
+    color: "rgba(255, 255, 255, 0.8)",
+    fontWeight: "500",
+    marginBottom: 5,
+  },
+  statValueModern: {
+    color: "white",
+    fontWeight: "bold",
+  },
+
+  // Legacy styles - keeping for compatibility
   statCard: {
-    width: "100%", // Điều chỉnh để card chiếm toàn bộ chiều rộng của TouchableOpacity
+    width: "100%",
     borderRadius: 12,
     padding: 1,
-    height: 130, // Tăng chiều cao của card
+    height: 130,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -502,7 +825,7 @@ const styleSheet = StyleService.create({
   statValue: {
     textAlign: "center",
     fontWeight: "bold",
-    flexWrap: "wrap", // Cho phép text được wrap xuống dòng
+    flexWrap: "wrap",
   },
   revenueCard: {
     backgroundColor: "#E3F2FD",
@@ -524,48 +847,139 @@ const styleSheet = StyleService.create({
     marginBottom: 4,
   },
 
+  // Features section
   featuresContainer: {
     paddingHorizontal: 16,
     marginBottom: 24,
   },
-  sectionTitle: {
+  sectionTitleContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 16,
+  },
+  sectionTitle: {
+    marginBottom: 0,
     fontWeight: "600",
+  },
+  viewAllText: {
+    color: "color-primary-500",
   },
   featuresGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
-  featureButton: {
-    width: (width - 48) / 3,
-    alignItems: "center",
+  featureButtonContainer: {
+    width: (width - 48) / 4,
     marginBottom: 16,
+  },
+  featureButton: {
+    alignItems: "center",
   },
   featureGradient: {
     width: 56,
     height: 56,
-    borderRadius: 28,
+    borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 8,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 3,
     },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.15,
+    shadowRadius: 5,
+    elevation: 4,
   },
   featureIcon: {
-    width: 28,
-    height: 28,
+    width: 26,
+    height: 26,
   },
   featureText: {
     textAlign: "center",
     fontSize: 12,
+    marginTop: 4,
   },
+
+  // Recent orders
+  recentOrdersContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 24,
+  },
+  recentOrdersScroll: {
+    paddingVertical: 8,
+  },
+  orderCardContainer: {
+    width: 220,
+    marginRight: 16,
+  },
+  orderCard: {
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
+    padding: 12,
+  },
+  orderCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  orderIdText: {
+    fontWeight: "bold",
+  },
+  orderStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusPending: {
+    backgroundColor: "rgba(255, 193, 7, 0.2)",
+  },
+  statusCompleted: {
+    backgroundColor: "rgba(76, 175, 80, 0.2)",
+  },
+  orderStatusText: {
+    fontSize: 10,
+    fontWeight: "bold",
+    color: "text-basic-color",
+  },
+  orderInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  orderInfoIcon: {
+    width: 14,
+    height: 14,
+    marginRight: 6,
+  },
+  orderInfoText: {
+    color: "text-hint-color",
+  },
+  orderTotalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "background-basic-color-3",
+  },
+  orderTotalLabel: {
+    color: "text-hint-color",
+  },
+  orderTotalValue: {
+    fontWeight: "bold",
+    color: "color-primary-500",
+  },
+
+  // Legacy styles for alerts section
   alertsContainer: {
     marginHorizontal: 16,
     marginBottom: 24,
@@ -642,6 +1056,8 @@ const styleSheet = StyleService.create({
   viewAllButton: {
     alignSelf: "flex-end",
   },
+
+  // Action button styles
   actionsContainer: {
     paddingHorizontal: 16,
     marginBottom: 24,
@@ -653,6 +1069,33 @@ const styleSheet = StyleService.create({
   actionButton: {
     flex: 1,
     marginHorizontal: 4,
+  },
+  actionButtonModern: {
+    shadowColor: "#6C5CE7",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  loadingContainer: {
+    height: 150,
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
+  },
+  emptyContainer: {
+    height: 150,
+    justifyContent: "center",
+    alignItems: "center",
+    width: width - 32,
+    borderRadius: 8,
+    backgroundColor: "background-basic-color-1",
+    marginHorizontal: 16,
+  },
+  emptyIcon: {
+    width: 40,
+    height: 40,
+    marginBottom: 8,
   },
 });
 

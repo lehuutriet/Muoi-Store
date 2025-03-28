@@ -52,6 +52,7 @@ import EditSupplierScreen from "../functions/edit/EditSupplierScreen";
 import CalendarScreen from "../screens/CalendarScreen";
 import LanguageScreen from "../screens/LanguageScreen";
 import ProfileScreen from "../screens/ProfileScreen";
+import CustomerDetailScreen from "../screens/CustomerDetailScreen";
 // Định nghĩa các tham số cho navigation
 type RootStackParamList = {
   TabNavigator: undefined;
@@ -104,6 +105,19 @@ type RootStackParamList = {
   CalendarScreen: undefined;
   LanguageScreen: undefined;
   ProfileScreen: undefined;
+  CustomerDetailScreen: {
+    customer: {
+      $id: string;
+      name: string;
+      phone: string;
+      email?: string;
+      points: number;
+      totalSpent: number;
+      lastVisit?: string;
+      joinDate: string;
+      notes?: string;
+    };
+  };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -361,6 +375,14 @@ const StackScreen: React.FC<StackScreenProps> = ({
         component={EditSupplierScreen}
         options={{
           headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="CustomerDetailScreen"
+        component={CustomerDetailScreen}
+        options={{
+          title: t("customer_details"),
+          headerTitleAlign: "center",
         }}
       />
       <Stack.Screen

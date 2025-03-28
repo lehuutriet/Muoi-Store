@@ -576,5 +576,12 @@
   "profile_updated_successfully": "Profile updated successfully",
   "failed_to_update_profile": "Failed to update profile",
   "failed_to_load_profile": "Failed to load profile information",
-  "something_went_wrong": "Something went wrong"
+  "something_went_wrong": "Something went wrong",
+  "recent_orders": "Recent Orders",
+  "view_all": "View All",
+  "pending": "Pending",
+  "completed": "Completed",
+  "total": "Total",
+
+  "no_recent_orders": "No recent orders"
 }

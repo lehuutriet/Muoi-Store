@@ -579,4 +579,11 @@
   "failed_to_update_profile": "Không thể cập nhật thông tin",
   "failed_to_load_profile": "Không thể tải thông tin tài khoản",
   "something_went_wrong": "Đã xảy ra lỗi"
+  ,"recent_orders": "Đơn hàng gần đây",
+  "view_all": "Xem tất cả",
+  "pending": "Đang chờ",
+  "completed": "Đã hoàn thành",
+  "total": "Tổng cộng",
+ 
+  "no_recent_orders": "Không có đơn hàng gần đây"
 } 
