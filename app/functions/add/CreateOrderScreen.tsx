@@ -41,6 +41,8 @@ import {
 import { currentOrderAtom } from "../../states/orderState";
 import { RouteProp } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
+import { useDatabases, COLLECTION_IDS } from "../../hook/AppWrite";
+import { useFocusEffect } from "@react-navigation/native";
 
 // Định nghĩa interfaces cho các order item
 interface OrderItem {
@@ -50,7 +52,7 @@ interface OrderItem {
   name: string;
 }
 type RootStackParamList = {
-  CreateOrderScreen: { method: string };
+  CreateOrderScreen: { method: string; shouldRefresh?: boolean };
   ReviewOrderScreen: undefined;
   // Thêm các route khác nếu cần
 };
@@ -87,10 +89,9 @@ interface Order {
 
 const { width } = Dimensions.get("window");
 
-const CheckoutButton = (): React.ReactElement => {
+const CheckoutButton = ({ order }: { order: Order }): React.ReactElement => {
   const styles = useStyleSheet(styleSheet);
   const { t } = useTranslation();
-  const [order, setOrder] = useRecoilState<Order>(currentOrderAtom);
   const [totalPrice, setTotalPrice] = useState<number>(0);
 
   useEffect(() => {
@@ -158,6 +159,7 @@ const CreateOrderScreen = ({ route, navigation }: CreateOrderScreenProps) => {
   const styles = useStyleSheet(styleSheet);
   const { t } = useTranslation();
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const { getAllItem } = useDatabases();
 
   const productData = useRecoilValue<Product[]>(allProductsAtom);
   const resetOrder = useResetRecoilState(currentOrderAtom);
@@ -174,6 +176,33 @@ const CreateOrderScreen = ({ route, navigation }: CreateOrderScreenProps) => {
     [productData]
   );
 
+  // Tạo một hàm refresh sử dụng useRecoilCallback
+  const refreshProducts = useRecoilCallback(
+    ({ set }) =>
+      async () => {
+        try {
+          console.log("Refreshing products from database in CreateOrderScreen");
+          const productData = await getAllItem(COLLECTION_IDS.products);
+
+          // Cập nhật atom allProductsAtom trực tiếp
+          set(allProductsAtom, productData);
+
+          console.log("Products refreshed with", productData.length, "items");
+        } catch (error) {
+          console.error("Error refreshing products:", error);
+        }
+      },
+    [getAllItem]
+  );
+
+  // Sử dụng useEffect để gọi hàm refresh khi có shouldRefresh
+  useEffect(() => {
+    if (route.params?.shouldRefresh) {
+      console.log("Should refresh flag detected, refreshing products...");
+      refreshProducts();
+    }
+  }, [route.params?.shouldRefresh, refreshProducts]);
+
   useEffect(() => {
     if (
       route.params &&
@@ -187,6 +216,16 @@ const CreateOrderScreen = ({ route, navigation }: CreateOrderScreenProps) => {
       // cleanup
     };
   }, [route.params, resetProductList, resetOrder]);
+
+  // Thêm useFocusEffect để refresh sản phẩm khi màn hình được focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log("CreateOrderScreen focused");
+      return () => {
+        // Cleanup nếu cần
+      };
+    }, [])
+  );
 
   const navigateBack = () => {
     navigation.goBack();
@@ -229,7 +268,7 @@ const CreateOrderScreen = ({ route, navigation }: CreateOrderScreenProps) => {
         </View>
       )}
 
-      <CheckoutButton />
+      <CheckoutButton order={order} />
     </Layout>
   );
 };

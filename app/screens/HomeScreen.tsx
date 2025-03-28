@@ -73,6 +73,7 @@ type RootStackParamList = {
   CreateOrderScreen: {
     title: string;
     method: string;
+    shouldRefresh?: boolean;
   };
   CreateProductScreen: {
     title: string;
@@ -260,11 +261,11 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
       icon: "shopping-cart-outline",
       color: ["#FF6B6B", "#FF8E8E"],
       onPress: () => {
-        refreshProductList().then(() => {
-          navigation.navigate("CreateOrderScreen", {
-            title: t("create_order"),
-            method: "create",
-          });
+        // Điều hướng ngay lập tức
+        navigation.navigate("CreateOrderScreen", {
+          title: t("create_order"),
+          method: "create",
+          shouldRefresh: true, // Thêm flag này để báo cho màn hình đích biết cần refresh
         });
       },
     },
@@ -683,13 +684,10 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
         distanceToEdge={20}
         onPressItem={(name) => {
           if (name === "CreateOrderScreen") {
-            // Gọi refresh trước khi chuyển hướng
-            refreshProductList().then(() => {
-              console.log("Navigation to CreateOrderScreen after refresh");
-              navigation.navigate(name, {
-                title: t("create_order"),
-                method: "create",
-              });
+            navigation.navigate(name, {
+              title: t("create_order"),
+              method: "create",
+              shouldRefresh: true,
             });
           } else if (name === "CreateProductScreen") {
             navigation.navigate(name, {
