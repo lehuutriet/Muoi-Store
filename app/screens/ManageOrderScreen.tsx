@@ -1,4 +1,10 @@
-import { Dimensions, StyleSheet, View, ViewStyle } from "react-native";
+import {
+  Dimensions,
+  StyleSheet,
+  View,
+  ViewStyle,
+  TextStyle,
+} from "react-native";
 
 import React, { useEffect, useState } from "react";
 import {
@@ -10,33 +16,14 @@ import {
   Icon,
   Card,
   Datepicker,
-  DatepickerProps,
-  I18nConfig,
   NativeDateService,
   Modal,
   Spinner,
+  useTheme,
 } from "@ui-kitten/components";
 import { useTranslation } from "react-i18next";
-import { useStorage, useDatabases, COLLECTION_IDS } from "../hook/AppWrite";
+
 import { OrderList, OrderScrollbar } from "../components/order";
-import { i18nCalendar as i18n } from "../i18/i18n.config";
-import { StackNavigationProp } from "@react-navigation/stack";
-import { RouteProp } from "@react-navigation/native";
-
-// Định nghĩa kiểu cho params của các màn hình
-type RootStackParamList = {
-  ManageOrderScreen: undefined; // thêm các route khác nếu cần
-};
-
-// Định nghĩa kiểu cho props navigation và route
-type ManageOrderScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  "ManageOrderScreen"
->;
-type ManageOrderScreenRouteProp = RouteProp<
-  RootStackParamList,
-  "ManageOrderScreen"
->;
 
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { ParamListBase } from "@react-navigation/native";
@@ -46,9 +33,17 @@ type ManageOrderScreenProps = NativeStackScreenProps<ParamListBase>;
 const ManageOrderScreen = ({ route, navigation }: ManageOrderScreenProps) => {
   const styles = useStyleSheet(styleSheet);
   const { t } = useTranslation();
+  const theme = useTheme();
   const [orderStatus, setOrderStatus] = useState("all");
-
   const [orderDate, setOrderDate] = useState(new Date());
+
+  // Hàm format ngày tháng theo định dạng Việt Nam
+  const formatDateForDisplay = (date: Date): string => {
+    const day = date.getDate().toString().padStart(2, "0");
+    const month = (date.getMonth() + 1).toString().padStart(2, "0");
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
 
   return (
     <Layout style={styles.mainLayout as ViewStyle}>
@@ -56,25 +51,28 @@ const ManageOrderScreen = ({ route, navigation }: ManageOrderScreenProps) => {
         selectedFilter={orderStatus}
         setSelectedFilter={setOrderStatus}
       />
-      <Datepicker
-        style={{
-          marginLeft: 10,
-          marginRight: 10,
-          marginBottom: 5,
-          width: Dimensions.get("window").width - 20,
-        }}
-        // label={t("order_date")}
-        date={orderDate}
-        max={new Date()}
-        onSelect={(nextDate) => setOrderDate(nextDate)}
-        accessoryRight={(props) => <Icon {...props} name="calendar" />}
-        dateService={
-          new NativeDateService("vn", {
-            i18n,
-            startDayOfWeek: 0,
-          })
-        }
-      />
+
+      <View style={styles.calendarContainer as ViewStyle}>
+        <Datepicker
+          date={orderDate}
+          onSelect={(nextDate) => setOrderDate(nextDate)}
+          min={new Date(2020, 0, 1)}
+          max={new Date(2030, 11, 31)}
+          size="large"
+        />
+
+        <View style={styles.selectedDateContainer as ViewStyle}>
+          <Icon
+            name="calendar-outline"
+            fill={theme["color-primary-500"]}
+            style={styles.calendarIcon as ViewStyle}
+          />
+          <Text category="s1" style={styles.selectedDateText as TextStyle}>
+            {t("showing_orders_for")}: {formatDateForDisplay(orderDate)}
+          </Text>
+        </View>
+      </View>
+
       <OrderList status={orderStatus} date={orderDate}></OrderList>
     </Layout>
   );
@@ -84,12 +82,30 @@ const styleSheet = StyleService.create({
   mainLayout: {
     flex: 1,
     width: "100%",
-    justifyContent: "center",
+    backgroundColor: "background-basic-color-1",
+  },
+  calendarContainer: {
+    backgroundColor: "background-basic-color-1",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "border-basic-color-3",
+  },
+  selectedDateContainer: {
+    flexDirection: "row",
     alignItems: "center",
-    // flexDirection: "row",
-    // flexWrap: "wrap",
-    // paddingHorizontal: 20,
-    // margin:10,
+    justifyContent: "center",
+    marginTop: 12,
+    padding: 8,
+    backgroundColor: "color-primary-100",
+    borderRadius: 8,
+  },
+  calendarIcon: {
+    width: 20,
+    height: 20,
+    marginRight: 8,
+  },
+  selectedDateText: {
+    color: "color-primary-700",
   },
   buttonContainer: {
     width: "45%",
@@ -106,7 +122,6 @@ const styleSheet = StyleService.create({
     height: 60,
     borderRadius: 5,
   },
-
   btnType: {
     display: "flex",
     flexDirection: "row",

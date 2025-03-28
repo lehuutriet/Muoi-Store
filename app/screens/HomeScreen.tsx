@@ -24,9 +24,9 @@ import {
 } from "@ui-kitten/components";
 import { FloatingAction } from "react-native-floating-action";
 import { StyleService, useStyleSheet } from "@ui-kitten/components";
-import { useRecoilValue } from "recoil";
+import { useRecoilValue, useRecoilState } from "recoil";
 import React, { useEffect, useState, useCallback, useContext } from "react";
-import { allProductsAtom, userAtom } from "../states";
+import { allProductsAtom, userAtom, orderScreenRefreshAtom } from "../states";
 import { LinearGradient } from "expo-linear-gradient";
 import { Query } from "appwrite";
 import Animated, {
@@ -73,7 +73,6 @@ type RootStackParamList = {
   CreateOrderScreen: {
     title: string;
     method: string;
-    shouldRefresh?: boolean;
   };
   CreateProductScreen: {
     title: string;
@@ -112,6 +111,9 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
   const [refreshing, setRefreshing] = useState(false);
   const [greeting, setGreeting] = useState("");
   const animatedValue = useSharedValue(0);
+  const [needsRefresh, setNeedsRefresh] = useRecoilState(
+    orderScreenRefreshAtom
+  );
 
   const { toggleDrawer } = useContext(DrawerContext);
   const { getAllItem } = useDatabases();
@@ -145,27 +147,6 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
 
     fetchRecentOrders();
   }, []);
-  const refreshProductList = useRecoilCallback(
-    ({ set }) =>
-      async () => {
-        try {
-          console.log("Refreshing product list from database...");
-          const productData = await getAllItem(COLLECTION_IDS.products);
-
-          // Cập nhật vào atom allProductsAtom thay vì từng sản phẩm một
-          set(allProductsAtom, productData);
-
-          console.log(
-            "Products refreshed successfully with",
-            productData.length,
-            "items"
-          );
-        } catch (error) {
-          console.error("Error refreshing product list:", error);
-        }
-      },
-    [getAllItem]
-  );
 
   // Animation for cards
   const animatedStyle = useAnimatedStyle(() => {
@@ -261,11 +242,10 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
       icon: "shopping-cart-outline",
       color: ["#FF6B6B", "#FF8E8E"],
       onPress: () => {
-        // Điều hướng ngay lập tức
+        setNeedsRefresh(true); // Đặt flag thành true
         navigation.navigate("CreateOrderScreen", {
           title: t("create_order"),
           method: "create",
-          shouldRefresh: true, // Thêm flag này để báo cho màn hình đích biết cần refresh
         });
       },
     },
@@ -684,10 +664,10 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
         distanceToEdge={20}
         onPressItem={(name) => {
           if (name === "CreateOrderScreen") {
+            setNeedsRefresh(true); // Đặt flag thành true
             navigation.navigate(name, {
               title: t("create_order"),
               method: "create",
-              shouldRefresh: true,
             });
           } else if (name === "CreateProductScreen") {
             navigation.navigate(name, {

@@ -37,6 +37,7 @@ import {
   allProductsAtom,
   productIdsAtom,
   productAtomFamily,
+  orderScreenRefreshAtom, // Import atom mới
 } from "../../states";
 import { currentOrderAtom } from "../../states/orderState";
 import { RouteProp } from "@react-navigation/native";
@@ -52,7 +53,7 @@ interface OrderItem {
   name: string;
 }
 type RootStackParamList = {
-  CreateOrderScreen: { method: string; shouldRefresh?: boolean };
+  CreateOrderScreen: { method: string };
   ReviewOrderScreen: undefined;
   // Thêm các route khác nếu cần
 };
@@ -164,6 +165,9 @@ const CreateOrderScreen = ({ route, navigation }: CreateOrderScreenProps) => {
   const productData = useRecoilValue<Product[]>(allProductsAtom);
   const resetOrder = useResetRecoilState(currentOrderAtom);
   const [order, setOrder] = useRecoilState<Order>(currentOrderAtom);
+  const [needsRefresh, setNeedsRefresh] = useRecoilState(
+    orderScreenRefreshAtom
+  );
 
   // Reset Product List
   const resetProductList = useRecoilCallback(
@@ -195,14 +199,6 @@ const CreateOrderScreen = ({ route, navigation }: CreateOrderScreenProps) => {
     [getAllItem]
   );
 
-  // Sử dụng useEffect để gọi hàm refresh khi có shouldRefresh
-  useEffect(() => {
-    if (route.params?.shouldRefresh) {
-      console.log("Should refresh flag detected, refreshing products...");
-      refreshProducts();
-    }
-  }, [route.params?.shouldRefresh, refreshProducts]);
-
   useEffect(() => {
     if (
       route.params &&
@@ -217,14 +213,21 @@ const CreateOrderScreen = ({ route, navigation }: CreateOrderScreenProps) => {
     };
   }, [route.params, resetProductList, resetOrder]);
 
-  // Thêm useFocusEffect để refresh sản phẩm khi màn hình được focus
+  // Thêm useFocusEffect để refresh sản phẩm khi màn hình được focus và flag needsRefresh = true
   useFocusEffect(
     useCallback(() => {
-      console.log("CreateOrderScreen focused");
+      console.log("CreateOrderScreen focused, needsRefresh:", needsRefresh);
+      if (needsRefresh) {
+        console.log("Refresh flag detected, refreshing products once...");
+        refreshProducts().then(() => {
+          // Đặt flag về false sau khi đã refresh
+          setNeedsRefresh(false);
+        });
+      }
       return () => {
         // Cleanup nếu cần
       };
-    }, [])
+    }, [needsRefresh, refreshProducts, setNeedsRefresh])
   );
 
   const navigateBack = () => {

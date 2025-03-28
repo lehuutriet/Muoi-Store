@@ -10,7 +10,7 @@ import {
   TextStyle,
   ImageStyle,
 } from "react-native";
-import { StyleProp } from "react-native"; // Thêm import này nếu chưa có
+import { StyleProp } from "react-native";
 
 import {
   Button,
@@ -35,8 +35,6 @@ import QRCode from "react-native-qrcode-svg";
 import { useRecoilState, useRecoilValue, useRecoilCallback } from "recoil";
 import * as RootNavigation from "../../navigator/RootNavigation";
 import { FloatingAction } from "react-native-floating-action";
-// import { CategoryScrollbar } from "../../components/category";
-// import ProductList from "../../components/product/ProductList";
 import {
   allCategoryAtom,
   currentOrderAtom,
@@ -45,6 +43,7 @@ import {
   productAtomFamily,
 } from "../../states";
 import { useFocusEffect } from "@react-navigation/native";
+
 interface Product {
   $id: string;
   name: string;
@@ -56,6 +55,7 @@ interface Product {
   count: number;
   description: string;
 }
+
 interface OrderListStyles {
   container: ViewStyle;
   contentContainer: ViewStyle;
@@ -65,7 +65,22 @@ interface OrderListStyles {
   cardInfo: ViewStyle;
   cardImg: ImageStyle;
   countIcon: ImageStyle;
+  orderHeader: ViewStyle;
+  orderIdContainer: ViewStyle;
+  orderIcon: ImageStyle;
+  statusBadge: ViewStyle;
+  orderInfoRow: ViewStyle;
+  infoItem: ViewStyle;
+  infoIcon: ImageStyle;
+  divider: ViewStyle;
+  priceContainer: ViewStyle;
+  actionButton: ViewStyle;
+  receiptButton: ViewStyle;
+  emptyContainer: ViewStyle;
+  emptyIcon: ImageStyle;
+  emptyText: TextStyle;
 }
+
 interface OrderInterface {
   $id: string;
   note: string;
@@ -78,6 +93,7 @@ interface OrderInterface {
   status: string;
   order: string;
 }
+
 const OrderList = ({
   status = "all",
   date = new Date(),
@@ -156,6 +172,7 @@ const OrderList = ({
     console.log("orderList::", result);
     setOrders(result);
   };
+
   useEffect(() => {
     loadOrders();
   }, [status, date, orderLimit]);
@@ -171,7 +188,6 @@ const OrderList = ({
       [
         {
           text: t("no"),
-          // onPress: () => false,
           style: "cancel",
         },
         {
@@ -182,12 +198,9 @@ const OrderList = ({
       ],
       {
         cancelable: true,
-        // onDismiss: () =>
-        //   Alert.alert(
-        //     'This alert was dismissed by tapping outside of the alert dialog.',
-        //   ),
       }
     );
+
   useFocusEffect(
     React.useCallback(() => {
       loadOrders();
@@ -199,6 +212,7 @@ const OrderList = ({
   const refreshOrders = () => {
     loadOrders();
   };
+
   const viewOrder = async (orderInfo: any) => {
     console.log("orderInfo::", orderInfo);
 
@@ -230,7 +244,7 @@ const OrderList = ({
     console.log("cancelOrder called::", orderInfo);
     try {
       await deleteItem(COLLECTION_IDS.orders, orderInfo.$id);
-      // Không cần tăng orderLimit, thay vào đó gọi refreshOrders
+
       refreshOrders();
       Alert.alert(
         "",
@@ -252,14 +266,31 @@ const OrderList = ({
     }
   };
 
+  // Hàm định dạng ngày
+  const formatDateString = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return `${date.getDate().toString().padStart(2, "0")}/${(date.getMonth() + 1).toString().padStart(2, "0")}/${date.getFullYear()}`;
+    } catch (e) {
+      return dateString;
+    }
+  };
+
   const renderItem = (info: any): React.ReactElement => {
-    // info.item.order = JSON.stringify(info.item.order);
     return (
       <Card
-        style={[styles.cardItem as ViewStyle]}
-        // status="basic"
-        // header={(headerProps) => renderItemHeader(headerProps, info)}
-        // footer={renderItemFooter}
+        style={[
+          styles.cardItem as ViewStyle,
+          {
+            borderLeftWidth: 4,
+            borderLeftColor:
+              info.item.status === "unpaid"
+                ? theme["color-danger-500"]
+                : info.item.status === "returned"
+                  ? theme["color-warning-500"]
+                  : theme["color-success-500"],
+          },
+        ]}
         onPress={() => {
           info.item.status === "unpaid"
             ? viewOrder(info.item)
@@ -269,104 +300,118 @@ const OrderList = ({
         }}
       >
         <View style={styles.productCard as ViewStyle}>
-          <View
-            style={{
-              display: "flex",
-              flexDirection: "row",
-              justifyContent: "space-between",
-            }}
-          >
-            <Text
-              appearance={info.item.status === "unpaid" ? "default" : "hint"}
-            >
-              {t("order_id") + ": " + info.item.$id.slice(-4)}
-            </Text>
-            // Trong OrderList.tsx - Thêm style cho đơn đã hủy
-            <Text
-              style={{ fontWeight: "bold" }}
-              appearance={info.item.status === "unpaid" ? "default" : "hint"}
-              status={
-                info.item.status === "unpaid"
-                  ? "danger"
-                  : info.item.status === "returned"
-                    ? "warning"
-                    : "basic"
-              }
-            >
-              {info.item.status === "returned"
-                ? t("returned")
-                : t(info.item.status)}
-            </Text>
-          </View>
-          <View
-            style={{
-              display: "flex",
-              flexDirection: "row",
-              justifyContent: "space-between",
-            }}
-          >
-            <Text
-              appearance={info.item.status === "unpaid" ? "default" : "hint"}
-            >
-              {t("table_num") + ": " + info.item.table}
-            </Text>
-            <Text
-              appearance={info.item.status === "unpaid" ? "default" : "hint"}
-              style={{ paddingBottom: 10, fontSize: 13 }}
-            >
-              {info.item.date}
-            </Text>
-          </View>
-
-          <View>
-            <Divider></Divider>
-            <View
-              style={{
-                display: "flex",
-                flexDirection: "row",
-                justifyContent: "space-between",
-                // width: Dimensions.get("window").width - 10,
-                // alignItems:"center"
-                paddingTop: 10,
-              }}
-            >
+          {/* Header với ID đơn hàng và trạng thái */}
+          <View style={styles.orderHeader as ViewStyle}>
+            <View style={styles.orderIdContainer as ViewStyle}>
+              <Icon
+                name="shopping-cart-outline"
+                fill={theme["color-primary-500"]}
+                style={styles.orderIcon as ImageStyle}
+              />
               <Text
+                category="s1"
                 appearance={info.item.status === "unpaid" ? "default" : "hint"}
               >
-                {t("final_price")}
+                {t("order_id") + ": " + info.item.$id.slice(-4)}
               </Text>
+            </View>
+
+            <View
+              style={[
+                styles.statusBadge as ViewStyle,
+                {
+                  backgroundColor:
+                    info.item.status === "unpaid"
+                      ? theme["color-danger-100"]
+                      : info.item.status === "returned"
+                        ? theme["color-warning-100"]
+                        : theme["color-success-100"],
+                },
+              ]}
+            >
               <Text
-                style={{ fontWeight: "bold" }}
-                status={info.item.status === "unpaid" ? "primary" : "basic"}
-                appearance={info.item.status === "unpaid" ? "default" : "hint"}
+                category="c1"
+                style={{
+                  color:
+                    info.item.status === "unpaid"
+                      ? theme["color-danger-700"]
+                      : info.item.status === "returned"
+                        ? theme["color-warning-700"]
+                        : theme["color-success-700"],
+                  fontWeight: "bold",
+                }}
               >
-                {Intl.NumberFormat("en-US", {
-                  style: "currency",
-                  currency: "VND",
-                }).format(info.item.total)}
+                {info.item.status === "returned"
+                  ? t("returned")
+                  : t(info.item.status)}
               </Text>
             </View>
           </View>
 
-          {/* <Icon
-          style={{ width: 20, height: 20 }}
-          fill="white"  
-          name="printer-outline"
-        /> */}
+          {/* Thông tin bàn và ngày đặt */}
+          <View style={styles.orderInfoRow as ViewStyle}>
+            <View style={styles.infoItem as ViewStyle}>
+              <Icon
+                name="home-outline"
+                fill={theme["color-basic-600"]}
+                style={styles.infoIcon as ImageStyle}
+              />
+              <Text
+                category="p2"
+                appearance={info.item.status === "unpaid" ? "default" : "hint"}
+              >
+                {t("table_num") + ": " + info.item.table}
+              </Text>
+            </View>
 
+            <View style={styles.infoItem as ViewStyle}>
+              <Icon
+                name="calendar-outline"
+                fill={theme["color-basic-600"]}
+                style={styles.infoIcon as ImageStyle}
+              />
+              <Text
+                category="p2"
+                appearance={info.item.status === "unpaid" ? "default" : "hint"}
+              >
+                {formatDateString(info.item.$createdAt)}
+              </Text>
+            </View>
+          </View>
+
+          <Divider style={styles.divider as ViewStyle} />
+
+          {/* Phần hiển thị giá */}
+          <View style={styles.priceContainer as ViewStyle}>
+            <Text
+              category="s2"
+              appearance={info.item.status === "unpaid" ? "default" : "hint"}
+            >
+              {t("final_price")}
+            </Text>
+            <Text
+              category="h6"
+              status={info.item.status === "unpaid" ? "primary" : "basic"}
+              appearance={info.item.status === "unpaid" ? "default" : "hint"}
+            >
+              {Intl.NumberFormat("vi-VN", {
+                style: "currency",
+                currency: "VND",
+              }).format(info.item.total)}
+            </Text>
+          </View>
+
+          {/* Nút thao tác */}
           {info.item.status === "unpaid" ? (
             <Layout level="1" style={styles.buttons as ViewStyle}>
               <Button
-                style={{
-                  flex: 1,
-                  marginRight: 5,
-                  borderWidth: 0.5,
-                  borderRadius: 5,
-                  height: 25,
-                }}
+                style={styles.actionButton as ViewStyle}
                 appearance="outline"
                 status="danger"
                 size="small"
+                accessoryLeft={(props) => (
+                  <Icon {...props} name="trash-2-outline" />
+                )}
                 onPress={() =>
                   showAlertConfirm("", t("cancel_order_confirm"), info.item)
                 }
@@ -374,14 +419,12 @@ const OrderList = ({
                 {t("remove")}
               </Button>
               <Button
-                style={{
-                  flex: 1,
-                  marginLeft: 5,
-                  borderWidth: 0.5,
-                  borderRadius: 5,
-                  height: 25,
-                }}
+                style={styles.actionButton as ViewStyle}
                 size="small"
+                status="primary"
+                accessoryLeft={(props) => (
+                  <Icon {...props} name="edit-2-outline" />
+                )}
                 onPress={() => viewOrder(info.item)}
               >
                 {t("update")}
@@ -390,16 +433,13 @@ const OrderList = ({
           ) : (
             <Layout level="1" style={styles.buttons as ViewStyle}>
               <Button
-                style={{
-                  flex: 1,
-                  marginLeft: 5,
-                  borderWidth: 0.5,
-                  borderRadius: 5,
-                  height: 25,
-                }}
+                style={styles.receiptButton as ViewStyle}
                 size="small"
                 appearance="outline"
                 status="primary"
+                accessoryLeft={(props) => (
+                  <Icon {...props} name="file-text-outline" />
+                )}
                 onPress={() =>
                   RootNavigation.navigate("ReceiptScreen", {
                     receiptData: info.item,
@@ -423,6 +463,18 @@ const OrderList = ({
         contentContainerStyle={styles.contentContainer as ViewStyle}
         data={orders}
         renderItem={renderItem}
+        ListEmptyComponent={() => (
+          <View style={styles.emptyContainer as ViewStyle}>
+            <Icon
+              name="shopping-cart-outline"
+              fill={theme["color-basic-400"]}
+              style={styles.emptyIcon as ImageStyle}
+            />
+            <Text appearance="hint" style={styles.emptyText as TextStyle}>
+              {t("no_orders_found")}
+            </Text>
+          </View>
+        )}
         onScroll={() => {
           status === "all" ? setLoadMore(true) : setLoadMore(false);
         }}
@@ -441,51 +493,111 @@ const styleSheet = StyleService.create<OrderListStyles>({
   container: {
     flex: 1,
     width: "100%",
-    // backgroundColor: "gray",
-    // height: "100%",
   },
   contentContainer: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     paddingBottom: 100,
   },
   cardItem: {
-    // marginVertical: 4,
-    // flex: 1 / 3,
-    // borderColor: "green",
-    marginBottom: 10,
-    // borderLeftWidth: 0,
-    // borderRightWidth: 0,
-    // borderTopWidth: 0,
-    // borderRadius: 10,
-    // divider: 0,
+    marginBottom: 12,
+    borderRadius: 8,
+    overflow: "hidden",
+    elevation: 2,
+    shadowColor: "rgba(0, 0, 0, 0.1)",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 4,
   },
   productCard: {
-    // display: "flex",
-    // flexDirection: "row",
+    paddingVertical: 4,
+  },
+  orderHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  orderIdContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  orderIcon: {
+    width: 18,
+    height: 18,
+    marginRight: 8,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  orderInfoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  infoItem: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  infoIcon: {
+    width: 16,
+    height: 16,
+    marginRight: 4,
+  },
+  divider: {
+    marginVertical: 8,
+  },
+  priceContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
   },
   buttons: {
     display: "flex",
     flexDirection: "row",
-    paddingTop: 10,
+    paddingTop: 8,
+  },
+  actionButton: {
+    flex: 1,
+    marginHorizontal: 4,
+    borderRadius: 6,
+  },
+  receiptButton: {
+    flex: 1,
+    borderRadius: 6,
   },
   cardInfo: {
-    // padding: 10,
-    // backgroundColor: "pink",
-    // display: "flex",
     flexDirection: "row",
     justifyContent: "space-between",
     width: Dimensions.get("window").width - 120,
   },
   cardImg: {
     aspectRatio: 1,
-    // padding: 10,
     width: 60,
     height: 60,
   },
   countIcon: {
     width: 20,
     height: 20,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 40,
+  },
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    marginBottom: 16,
+    opacity: 0.5,
+  },
+  emptyText: {
+    textAlign: "center",
+    opacity: 0.8,
   },
 });
 

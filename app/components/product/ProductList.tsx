@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   Alert,
   ScrollView,
+  ViewStyle,
+  ImageStyle,
 } from "react-native";
 import {
   Button,
@@ -18,7 +20,6 @@ import {
   StyleService,
   Layout,
 } from "@ui-kitten/components";
-// import { useDatabases } from "../../hooks/AppWrite";
 import { useRecoilState, useRecoilValue, useRecoilCallback } from "recoil";
 import {
   productIdsAtom,
@@ -30,12 +31,52 @@ import {
 import * as RootNavigation from "../../navigator/RootNavigation";
 import { useTranslation } from "react-i18next";
 import { useStorage, useDatabases, COLLECTION_IDS } from "../../hook/AppWrite";
-// Trong file ProductList.tsx
+
+// Định nghĩa interface cho Product
+interface Product {
+  $id: string;
+  name: string;
+  photoUrl?: string;
+  price: number;
+  category?: string;
+  count: number;
+}
+
+// Định nghĩa interface cho OrderItem
+interface OrderItem {
+  $id: string;
+  name: string;
+  photoUrl?: string;
+  price: number;
+  count: number;
+}
+
+// Định nghĩa interface cho Order
+interface Order {
+  $id: string;
+  note: string;
+  table: string;
+  location?: string;
+  discount: number;
+  subtract: number;
+  total: number;
+  date: Date;
+  order: OrderItem[];
+  couponCode?: string;
+  promotionDiscount?: number;
+}
+
+// Props cho ProductCard
+interface ProductCardProps {
+  productId: string;
+}
+
 interface ProductListProps {
   screen: string;
   editable: boolean;
   category?: string;
 }
+
 const ProductList: React.FC<ProductListProps> = ({
   screen,
   editable,
@@ -45,8 +86,8 @@ const ProductList: React.FC<ProductListProps> = ({
   const theme = useTheme();
   const { t } = useTranslation();
   const { getAllItem, createItem, updateItem, deleteItem } = useDatabases();
-  const [productIDs, setProductIDs] = useRecoilState(productIdsAtom);
-  // const order = useRecoilValue(currentOrderAtom);
+  const [productIDs, setProductIDs] = useRecoilState<string[]>(productIdsAtom);
+  const [order, setOrder] = useRecoilState<Order>(currentOrderAtom);
 
   // Refresh Product List
   const refreshProductList = useRecoilCallback(
@@ -54,7 +95,7 @@ const ProductList: React.FC<ProductListProps> = ({
       async () => {
         const productData = await getAllItem(COLLECTION_IDS.products);
         set(allProductsAtom, productData);
-        const ids = [];
+        const ids: string[] = [];
         for (const product of productData) {
           ids.push(product.$id);
           set(productAtomFamily(product.$id), product);
@@ -63,20 +104,32 @@ const ProductList: React.FC<ProductListProps> = ({
       },
     []
   );
+
   // Update Order List
-  // const updateOrderList = useCallback((newItem) => {
-  //   const item = JSON.parse(JSON.stringify(newItem)) as typeof newItem;
-  //   const index = order.order.findIndex((item) => item.$id === newItem.$id);
-  //   let newOrder = [...order.order];
-  //   if (index >= 0) {
-  //     newOrder[index].count = item.count;
-  //   } else {
-  //     newOrder.push(item);
-  //   }
-  //   newOrder = newOrder.filter((item) => item.count > 0);
-  //   setOrder({ ...order, order: newOrder });
-  //   console.log("updateOrderList::", item, order);
-  // }, []);
+  const updateOrderList = useCallback(
+    (newItem: Product) => {
+      // Tạo bản sao sâu của đối tượng để tránh các vấn đề với readonly props
+      const item = JSON.parse(JSON.stringify(newItem)) as typeof newItem;
+      const index = order.order.findIndex(
+        (orderItem) => orderItem.$id === item.$id
+      );
+      let newOrder = [...order.order];
+
+      if (index >= 0) {
+        // Thay thế đối tượng tại index thay vì cập nhật trực tiếp
+        newOrder[index] = { ...newOrder[index], count: item.count };
+      } else {
+        newOrder.push(item as OrderItem);
+      }
+
+      // Lọc các mục có count > 0
+      newOrder = newOrder.filter((orderItem) => orderItem.count > 0);
+
+      // Cập nhật state order
+      setOrder({ ...order, order: newOrder });
+    },
+    [order, setOrder]
+  );
 
   const showAlertConfirm = (tilte: string, message: string, itemID: string) =>
     Alert.alert(
@@ -85,7 +138,6 @@ const ProductList: React.FC<ProductListProps> = ({
       [
         {
           text: t("no"),
-          // onPress: () => false,
           style: "cancel",
         },
         {
@@ -96,10 +148,6 @@ const ProductList: React.FC<ProductListProps> = ({
       ],
       {
         cancelable: true,
-        // onDismiss: () =>
-        //   Alert.alert(
-        //     'This alert was dismissed by tapping outside of the alert dialog.',
-        //   ),
       }
     );
 
@@ -109,28 +157,28 @@ const ProductList: React.FC<ProductListProps> = ({
     refreshProductList();
   };
 
-  const ProductCard = ({ productId }) => {
-    const [product, setProduct] = useRecoilState(
+  const ProductCard: React.FC<ProductCardProps> = ({ productId }) => {
+    const [product, setProduct] = useRecoilState<Product>(
       productAtomFamilySelector(productId)
     );
-    const updateCount = (method) => {
+
+    const updateCount = (method: "add" | "sub") => {
       const math = method === "add" ? 1 : method === "sub" ? -1 : 0;
       let count = product.count >= 0 ? product.count + math : 0;
       count = count > 0 ? count : 0;
       const updatedItem = { ...product, count: count };
       setProduct(updatedItem);
+
+      if (screen === "order") {
+        updateOrderList(updatedItem);
+      }
     };
-    // console.log("ProductCard rendered::", productId);
 
     return (
       <>
         {category === "all" || product.category === category ? (
           <Card
-            style={styles.cardItem}
-            // status="basic"
-            // header={(headerProps) => renderItemHeader(headerProps, info)}
-            // footer={renderItemFooter}
-
+            style={styles.cardItem as ViewStyle}
             onPress={() =>
               screen === "manage" && editable
                 ? RootNavigation.navigate("CreateProductScreen", {
@@ -141,9 +189,9 @@ const ProductList: React.FC<ProductListProps> = ({
                 : null
             }
           >
-            <View style={styles.productCard}>
+            <View style={styles.productCard as ViewStyle}>
               <ImageBackground
-                style={styles.cardImg}
+                style={styles.cardImg as ViewStyle}
                 imageStyle={{ borderRadius: 8 }}
                 source={
                   product.photoUrl
@@ -153,7 +201,7 @@ const ProductList: React.FC<ProductListProps> = ({
                 resizeMode="cover"
               ></ImageBackground>
 
-              <View style={styles.cardInfo}>
+              <View style={styles.cardInfo as ViewStyle}>
                 <View style={{ paddingLeft: 10 }}>
                   <Text style={{ paddingBottom: 15 }}> {product.name}</Text>
                   <Text status="primary">
@@ -187,7 +235,7 @@ const ProductList: React.FC<ProductListProps> = ({
                       }
                     >
                       <Icon
-                        style={styles.countIcon}
+                        style={styles.countIcon as ImageStyle}
                         fill={theme["color-basic-600"]}
                         name="edit"
                       />
@@ -203,7 +251,7 @@ const ProductList: React.FC<ProductListProps> = ({
                       }
                     >
                       <Icon
-                        style={styles.countIcon}
+                        style={styles.countIcon as ImageStyle}
                         fill={theme["color-danger-400"]}
                         name="trash-2"
                       />
@@ -222,7 +270,7 @@ const ProductList: React.FC<ProductListProps> = ({
                       onPress={() => updateCount("sub")}
                       accessoryRight={() => (
                         <Icon
-                          style={styles.countIcon}
+                          style={styles.countIcon as ImageStyle}
                           fill="red"
                           name="minus-circle"
                         />
@@ -234,7 +282,7 @@ const ProductList: React.FC<ProductListProps> = ({
                       onPress={() => updateCount("add")}
                       accessoryRight={() => (
                         <Icon
-                          style={styles.countIcon}
+                          style={styles.countIcon as ImageStyle}
                           fill="green"
                           name="plus-circle"
                         />
@@ -253,25 +301,12 @@ const ProductList: React.FC<ProductListProps> = ({
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container as ViewStyle}>
       {productIDs.map((id) => (
         <ProductCard key={id} productId={id} />
       ))}
       <Layout style={{ paddingBottom: 100 }}></Layout>
     </ScrollView>
-    // <List
-    //   style={styles.container}
-    //   contentContainerStyle={styles.contentContainer}
-    //   data={products.filter((product) => {
-    //     if (category === "all") {
-    //       return true;
-    //     } else {
-    //       return product.category === category;
-    //     }
-    //   })}
-    //   renderItem={renderItem}
-    //   // numColumns={1}
-    // />
   );
 };
 
@@ -294,7 +329,6 @@ const styleSheet = StyleService.create({
   },
   cardImg: {
     aspectRatio: 1,
-    // padding: 10,
     width: 60,
     height: 60,
   },
