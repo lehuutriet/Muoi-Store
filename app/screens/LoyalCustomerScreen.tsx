@@ -1,12 +1,11 @@
-// LoyalCustomerScreen.tsx (đã chỉnh sửa)
+// LoyalCustomerScreen.tsx (đã sửa để giữ kết quả tìm kiếm khi quay lại)
 import React, { useState, useEffect, useCallback } from "react";
 import {
   StyleSheet,
   View,
   Dimensions,
-  ScrollView,
   RefreshControl,
-  Alert,
+  ActivityIndicator,
   ViewStyle,
   ImageStyle,
 } from "react-native";
@@ -21,7 +20,7 @@ import {
   Avatar,
   StyleService,
   useStyleSheet,
-  Modal,
+  useTheme,
 } from "@ui-kitten/components";
 import { useTranslation } from "react-i18next";
 import { useDatabases, COLLECTION_IDS } from "../hook/AppWrite";
@@ -30,7 +29,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Query } from "appwrite";
 import { TextStyle } from "react-native";
 
-// Định nghĩa kiểu dữ liệu cho khách hàng (giữ nguyên)
+// Định nghĩa kiểu dữ liệu cho khách hàng
 interface Customer {
   $id: string;
   name: string;
@@ -44,6 +43,8 @@ interface Customer {
 }
 
 const { width } = Dimensions.get("window");
+const CUSTOMERS_PER_PAGE = 10;
+const SEARCH_LIMIT = 100; // Tải nhiều khách hàng hơn khi tìm kiếm
 
 interface LoyalCustomerProps {
   navigation: any;
@@ -51,6 +52,7 @@ interface LoyalCustomerProps {
 
 const LoyalCustomerScreen: React.FC<LoyalCustomerProps> = ({ navigation }) => {
   const styles = useStyleSheet(styleSheet);
+  const theme = useTheme();
   const { t } = useTranslation();
   const { getAllItem } = useDatabases();
 
@@ -59,48 +61,179 @@ const LoyalCustomerScreen: React.FC<LoyalCustomerProps> = ({ navigation }) => {
   const [searchText, setSearchText] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
-  // Lấy danh sách khách hàng
-  const fetchCustomers = useCallback(async () => {
-    try {
-      setRefreshing(true);
-      const customersData = await getAllItem(COLLECTION_IDS.customers);
-      setCustomers(customersData);
-      setFilteredCustomers(customersData);
-    } catch (error) {
-      console.error("Error fetching customers:", error);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [getAllItem]);
+  // Thêm state để kiểm soát lần đầu load hay đã từng load rồi
+  const [initialLoaded, setInitialLoaded] = useState(false);
 
-  // Filter customers based on search text
-  useEffect(() => {
-    if (searchText) {
-      const filtered = customers.filter(
-        (customer) =>
-          customer.name.toLowerCase().includes(searchText.toLowerCase()) ||
-          customer.phone.includes(searchText)
-      );
-      setFilteredCustomers(filtered);
-    } else {
-      setFilteredCustomers(customers);
-    }
-  }, [searchText, customers]);
+  // State cho infinite scroll
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [lastCreatedAt, setLastCreatedAt] = useState<string | null>(null);
 
-  useFocusEffect(
-    React.useCallback(() => {
-      fetchCustomers();
-      return () => {};
-    }, [])
+  // Lấy danh sách khách hàng với phân trang
+  const fetchCustomers = useCallback(
+    async (isInitial = false, forceReload = false) => {
+      try {
+        // Nếu đang tìm kiếm, đã tải dữ liệu rồi và không phải force reload, thì không tải lại
+        if (searchText && initialLoaded && !forceReload) {
+          return;
+        }
+
+        if (isInitial) {
+          setLoading(true);
+          if (forceReload) {
+            setCustomers([]);
+            setFilteredCustomers([]);
+            setLastCreatedAt(null);
+          }
+        } else {
+          setLoadingMore(true);
+        }
+
+        // Tạo queries
+        const queries = [
+          Query.orderDesc("$createdAt"),
+          Query.limit(searchText ? SEARCH_LIMIT : CUSTOMERS_PER_PAGE),
+        ];
+
+        // Thêm điều kiện phân trang nếu không phải lần đầu và không đang tìm kiếm
+        if (lastCreatedAt && !isInitial && !searchText) {
+          queries.push(Query.lessThan("$createdAt", lastCreatedAt));
+        }
+
+        console.log(
+          "Đang tải khách hàng với queries:",
+          JSON.stringify(queries)
+        );
+
+        const newCustomers = await getAllItem(
+          COLLECTION_IDS.customers,
+          queries
+        );
+
+        console.log(`Đã tải ${newCustomers.length} khách hàng`);
+
+        // Cập nhật state
+        if (newCustomers.length > 0) {
+          // Lưu thông tin về khách hàng cuối cùng để phân trang tiếp theo
+          const newLastCreatedAt =
+            newCustomers[newCustomers.length - 1].$createdAt;
+          setLastCreatedAt(newLastCreatedAt);
+
+          // Kiểm tra xem còn khách hàng để tải không
+          setHasMore(!searchText && newCustomers.length === CUSTOMERS_PER_PAGE);
+
+          // Cập nhật danh sách khách hàng
+          if (isInitial) {
+            setCustomers(newCustomers);
+
+            // Nếu đang tìm kiếm, lọc dữ liệu trên client
+            if (searchText) {
+              const filtered = newCustomers.filter(
+                (customer) =>
+                  customer.name
+                    .toLowerCase()
+                    .includes(searchText.toLowerCase()) ||
+                  customer.phone.includes(searchText)
+              );
+              setFilteredCustomers(filtered);
+            } else {
+              setFilteredCustomers(newCustomers);
+            }
+
+            // Đánh dấu đã tải dữ liệu ban đầu
+            setInitialLoaded(true);
+          } else {
+            // Loại bỏ các khách hàng trùng lặp trước khi thêm vào danh sách
+            const existingIds = new Set(customers.map((c) => c.$id));
+            const uniqueNewCustomers = newCustomers.filter(
+              (c) => !existingIds.has(c.$id)
+            );
+
+            const updatedCustomers = [...customers, ...uniqueNewCustomers];
+            setCustomers(updatedCustomers);
+
+            // Nếu đang tìm kiếm, lọc lại dữ liệu
+            if (searchText) {
+              const filtered = updatedCustomers.filter(
+                (customer) =>
+                  customer.name
+                    .toLowerCase()
+                    .includes(searchText.toLowerCase()) ||
+                  customer.phone.includes(searchText)
+              );
+              setFilteredCustomers(filtered);
+            } else {
+              setFilteredCustomers(updatedCustomers);
+            }
+          }
+        } else {
+          // Không có khách hàng mới, đã tải hết
+          setHasMore(false);
+        }
+      } catch (error) {
+        console.error("Lỗi khi tải khách hàng:", error);
+        setHasMore(false);
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [getAllItem, lastCreatedAt, customers, searchText, initialLoaded]
   );
 
+  // Xử lý khi kéo xuống refresh - luôn tải lại dữ liệu mới
   const onRefresh = useCallback(() => {
-    fetchCustomers();
+    setRefreshing(true);
+    fetchCustomers(true, true).finally(() => setRefreshing(false));
   }, [fetchCustomers]);
 
-  // Sửa lại hàm này để điều hướng sang màn hình chi tiết
+  // Xử lý khi kéo xuống cuối danh sách
+  const handleLoadMore = () => {
+    if (!loadingMore && hasMore && !searchText) {
+      console.log("Đang tải thêm khách hàng...");
+      fetchCustomers(false);
+    }
+  };
+
+  // Cập nhật kết quả tìm kiếm mỗi khi searchText thay đổi
+  useEffect(() => {
+    if (customers.length > 0) {
+      if (searchText) {
+        const filtered = customers.filter(
+          (customer) =>
+            customer.name.toLowerCase().includes(searchText.toLowerCase()) ||
+            customer.phone.includes(searchText)
+        );
+        setFilteredCustomers(filtered);
+      } else {
+        setFilteredCustomers(customers);
+      }
+    }
+
+    // Tải lại dữ liệu khi searchText thay đổi, nhưng chỉ nếu đã có delay
+    const timeoutId = setTimeout(() => {
+      if (searchText !== "") {
+        fetchCustomers(true, true); // Force reload khi tìm kiếm để tải đủ dữ liệu
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchText]);
+
+  // Chỉ tải dữ liệu lần đầu tiên màn hình được focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!initialLoaded) {
+        // Chỉ tải nếu chưa từng tải
+        fetchCustomers(true, false);
+      }
+      return () => {};
+    }, [initialLoaded, fetchCustomers])
+  );
+
+  // Xử lý khi chọn khách hàng
   const handleSelectCustomer = (customer: Customer) => {
-    // Chuyển hướng sang màn hình chi tiết khách hàng
     navigation.navigate("CustomerDetailScreen", {
       customer: customer,
     });
@@ -132,7 +265,7 @@ const LoyalCustomerScreen: React.FC<LoyalCustomerProps> = ({ navigation }) => {
               style={styles.pointsIcon as ImageStyle}
             />
             <Text category="c1" status="warning">
-              {item.points} {t("points")}
+              {item.points || 0} {t("points")}
             </Text>
           </View>
         </View>
@@ -144,6 +277,58 @@ const LoyalCustomerScreen: React.FC<LoyalCustomerProps> = ({ navigation }) => {
       </View>
     </Card>
   );
+
+  // Render footer cho list - hiển thị loading khi tải thêm
+  const renderFooter = () => {
+    if (!hasMore && filteredCustomers.length > 0) {
+      return (
+        <View style={styles.footerContainer as ViewStyle}>
+          <Text appearance="hint">{t("no_more_customers")}</Text>
+        </View>
+      );
+    }
+
+    if (loadingMore) {
+      return (
+        <View style={styles.footerContainer as ViewStyle}>
+          <ActivityIndicator size="small" color={theme["color-primary-500"]} />
+          <Text style={styles.footerText as TextStyle}>
+            {t("loading_more")}
+          </Text>
+        </View>
+      );
+    }
+
+    return null;
+  };
+
+  // Render empty state
+  const renderEmpty = () => {
+    if (loading) return null;
+
+    return (
+      <View style={styles.emptyContainer as ViewStyle}>
+        <Icon
+          name="people-outline"
+          fill="#E0E0E0"
+          style={styles.emptyIcon as ImageStyle}
+        />
+        <Text appearance="hint" style={styles.emptyText as TextStyle}>
+          {searchText ? t("no_matching_customers") : t("no_customers_found")}
+        </Text>
+        {!searchText && (
+          <Button
+            appearance="ghost"
+            status="primary"
+            onPress={() => navigation.navigate("AddCustomerScreen")}
+            style={styles.emptyActionButton as ViewStyle}
+          >
+            {t("add_customer")}
+          </Button>
+        )}
+      </View>
+    );
+  };
 
   const actions = [
     {
@@ -164,40 +349,42 @@ const LoyalCustomerScreen: React.FC<LoyalCustomerProps> = ({ navigation }) => {
           accessoryLeft={(props) => (
             <Icon {...props} name="search-outline" fill="#4169E1" />
           )}
+          accessoryRight={
+            searchText
+              ? (props) => (
+                  <Icon
+                    {...props}
+                    name="close-outline"
+                    fill="#8F9BB3"
+                    onPress={() => setSearchText("")}
+                  />
+                )
+              : undefined
+          }
           style={styles.searchInput as TextStyle}
         />
       </View>
 
-      {filteredCustomers.length > 0 ? (
-        <List
-          data={filteredCustomers}
-          renderItem={renderCustomerItem}
-          style={styles.list as ViewStyle}
-          contentContainerStyle={styles.listContent as ViewStyle}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        />
-      ) : (
-        <View style={styles.emptyContainer as ViewStyle}>
-          <Icon
-            name="people-outline"
-            fill="#E0E0E0"
-            style={styles.emptyIcon as ImageStyle}
+      <List
+        data={filteredCustomers}
+        renderItem={renderCustomerItem}
+        style={styles.list as ViewStyle}
+        contentContainerStyle={[
+          styles.listContent as ViewStyle,
+          filteredCustomers.length === 0 && { flex: 1 },
+        ]}
+        ListEmptyComponent={renderEmpty}
+        ListFooterComponent={renderFooter}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.3}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[theme["color-primary-500"]]}
           />
-          <Text appearance="hint" style={styles.emptyText as TextStyle}>
-            {t("no_customers_found")}
-          </Text>
-          <Button
-            appearance="ghost"
-            status="primary"
-            onPress={() => navigation.navigate("AddCustomerScreen")}
-            style={styles.emptyActionButton as ViewStyle}
-          >
-            {t("add_customer")}
-          </Button>
-        </View>
-      )}
+        }
+      />
 
       <FloatingAction
         actions={actions}
@@ -215,7 +402,7 @@ const LoyalCustomerScreen: React.FC<LoyalCustomerProps> = ({ navigation }) => {
   );
 };
 
-// Giữ lại các styles cần thiết cho màn hình danh sách
+// Giữ nguyên styles
 const styleSheet = StyleService.create({
   container: {
     flex: 1,
@@ -301,6 +488,17 @@ const styleSheet = StyleService.create({
   },
   emptyActionButton: {
     marginTop: 8,
+  },
+  footerContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 16,
+  },
+  footerText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: "text-hint-color",
   },
 });
 

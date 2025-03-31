@@ -523,7 +523,7 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
                 onPress={() => navigation.navigate("ManageOrderScreen")}
               >
                 <Text category="s1" style={styles.viewAllText as TextStyle}>
-                  {t("view_all")}
+                  {t("view_orders")}
                 </Text>
               </TouchableOpacity>
             </View>

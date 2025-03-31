@@ -523,10 +523,6 @@ const ManageProductScreen = () => {
     <Layout style={styles.container as ViewStyle}>
       {/* Header with modern tab switcher */}
       <View style={styles.header as ViewStyle}>
-        <Text category="h5" style={styles.headerTitle as TextStyle}>
-          {t(activeTab === "product" ? "manage_products" : "manage_categories")}
-        </Text>
-
         <View style={styles.tabSwitcher as ViewStyle}>
           <Button
             style={
